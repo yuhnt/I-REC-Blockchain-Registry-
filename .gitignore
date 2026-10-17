@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+
+# Sản phẩm trung gian và kết quả (chỉ commit hash trong manifests/)
+/artifacts/
+
+# Hardhat
+contracts/node_modules/
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+contracts/coverage/
+contracts/coverage.json
+contracts/gas-report*.txt
+
+# Khác
+.env

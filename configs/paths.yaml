@@ -1,0 +1,5 @@
+# Đường dẫn tương đối tính từ thư mục source/. Dữ liệu gốc không nằm trong repo.
+dataset: ../dataset
+pvdaq_2107: ../dataset/pvdaq-systems-2105-2107
+nsrdb: ../dataset/nsrdb
+artifacts: artifacts
