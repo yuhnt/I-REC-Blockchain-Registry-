@@ -1,0 +1,27 @@
+# Mốc 1 – đặc trưng được phép của mô hình AI (Final Proposal Mục 4 protocol bước 4, Phụ lục 3.5).
+# Chỉ lấy từ O4 (NSRDB) và thông số tĩnh của nhà máy. Không dùng O1–O3.
+allowed_sources: [O4, static]
+
+features:
+  poa_energy_nsrdb_whm2: {source: O4, desc: "năng lượng POA ngày tính từ NSRDB qua pvlib (nghiêng 25°, hướng 180°)"}
+  clearsky_index: {source: O4, desc: "Σ GHI / Σ Clearsky GHI trong ngày"}
+  temp_mean_c: {source: O4, desc: "nhiệt độ trung bình ban ngày (NSRDB Temperature)"}
+  temp_max_c: {source: O4, desc: "nhiệt độ cực đại trong ngày"}
+  wind_mean_ms: {source: O4, desc: "tốc độ gió trung bình ban ngày"}
+  doy_sin: {source: static, desc: "sin(2π · ngày trong năm / 365,25)"}
+  doy_cos: {source: static, desc: "cos(2π · ngày trong năm / 365,25)"}
+  poa_clip_hours: {source: O4, desc: "số giờ POA (NSRDB) vượt ngưỡng ứng với clipping"}
+
+target: meter_wh_day             # năng lượng ngày tại công tơ, chỉ trên ngày trung thực của train (giả định đã được kiểm toán, sạch)
+
+# Cột có tiền tố này không bao giờ được vào ma trận đặc trưng (kiểm bằng test).
+forbidden_prefixes: [inv, meter, poa_site, o1, o2, o3]
+
+model:
+  impl: sklearn.ensemble.HistGradientBoostingRegressor
+  loss: quantile
+  median_quantile: 0.5
+  base_quantile: 0.95            # trần C = Q̂_0.95(x) · (1 + τ_C), τ_C chọn trên val (thresholds.yaml)
+  random_state: 0
+  train_split: train
+  ablation_A2: sklearn.linear_model.QuantileRegressor

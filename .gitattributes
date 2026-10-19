@@ -1,0 +1,4 @@
+# Giữ LF trên mọi máy để hash trong manifests/ ổn định và diff không nhiễu.
+* text=auto eol=lf
+*.png binary
+*.parquet binary

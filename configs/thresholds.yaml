@@ -1,0 +1,34 @@
+# Mốc 1 – luật chọn ngưỡng của lớp B (Final Proposal Mục 4 "Quy ước", Phụ lục 3.4–3.5). Chi tiết ở SPEC.md mục 6, 8.
+# Mọi tỉ lệ ở đây là tỉ lệ REVIEW nhầm: phần lô trung thực (một lô = một ngày của CP) bị đẩy sang REVIEW.
+calibration:
+  split: val
+  honest_only: true              # ngưỡng chỉ chọn trên lô trung thực, không thấy kịch bản tấn công
+  unit: lot                      # lô = một ngày của cả nhà máy (một CP)
+
+completeness:                    # bước ①: thiếu báo cáo → REVIEW
+  min_daytime_coverage: 0.95     # mỗi báo cáo phải có số liệu ở ≥ 95% slot ban ngày
+  daytime: solar_zenith_lt_90    # ban ngày theo vị trí mặt trời, không theo cảm biến tại chỗ
+
+consistency_a:                   # bước ②: luật (a), chỉ báo khi O1 cao hơn
+  one_sided: true
+  false_review: 0.01             # hợp các cờ (a) chiếm 1% lô trung thực trên val
+  site_temperature_unit: F       # cảm biến tại chỗ ghi °F, đổi sang °C trước khi dùng
+  min_slot_fraction_of_capacity: 0.05   # mức slot chỉ xét slot có O2 ≥ 5% công suất
+
+ceiling:                         # bước ③: riêng trần, tính trên lô trung thực của val
+  false_review_main: 0.04        # kết quả chính; tổng REVIEW nhầm khoảng 5%
+  false_review_sweep: [0.01, 0.02, 0.04, 0.05, 0.10]   # mục "Tỉ lệ REVIEW nhầm" (SPEC mục 8)
+  pvwatts:                       # B2: trần = PVWatts(NSRDB) · (1 + τ₄)
+    fit_split: train
+  ai:                            # Proposed: trần = Q̂_0.95(x) · (1 + τ_C)
+    base_quantile: 0.95
+
+shared_thresholds: [tau_12, tau_13]   # dùng chung cho B2 và Proposed; chỉ trần khác nhau
+
+capacity:                        # luật ③ ở lớp A (contract), áp dụng cho mọi cấu hình
+  slot_hours: 0.25               # mỗi slot ≤ công suất AC × 0,25 h
+  day_rule: sun_hours            # mỗi ngày ≤ công suất AC × số giờ mặt trời trên đường chân trời (pvlib)
+
+random_check:                    # mục "Tỉ lệ kiểm tra ngẫu nhiên" (SPEC mục 8)
+  p: [0.0, 0.01, 0.05]           # tỉ lệ số lô đã MINT được auditor bốc thăm kiểm tra
+  at_ceiling_false_review: 0.04

@@ -68,13 +68,41 @@ Sản phẩm trung gian (parquet, tập test, mô hình, kết quả) ghi vào `
 - Đối tượng dùng chung (thiết bị, yêu cầu phát hành, báo cáo oracle, verdict, quyết định, sự kiện, nhãn) nằm trong [rec/schema.py](rec/schema.py).
 - Nhãn ẩn của generator chỉ được đọc bởi `rec/metrics` và Production Auditor mô phỏng.
 
+## Đặc tả thí nghiệm (mốc 1)
+
+[SPEC.md](SPEC.md) cùng `configs/split.yaml`, `scenarios.yaml`, `features.yaml`, `thresholds.yaml`, `configs/days.csv` và `configs/days_dropped.csv` là đặc tả đã chốt trước khi cài đặt AI. `tests/test_spec.py` kiểm tính nhất quán giữa các file này. [COMPLIANCE.md](COMPLIANCE.md) đối chiếu từng điều khoản I-REC Code v1.11 với chỗ hiện thực và test.
+
+Sinh lại danh sách ngày hợp lệ (1.985 ngày sau khi loại 73 ngày lỗi dữ liệu; đồng thời ghi `artifacts/p2107_15m.parquet`):
+
+```bash
+.venv/Scripts/python -m rec.data.days
+```
+
+Ghi hoặc kiểm hash của mốc 1:
+
+```bash
+.venv/Scripts/python -m rec.manifest spec-v1 --check
+```
+
+## Hình của proposal
+
+Hai hình trong Final Proposal (mô hình đề xuất, sơ đồ thực nghiệm) được vẽ bằng code, nên sửa được và vẽ lại được:
+
+```bash
+.venv/Scripts/python docs/figures/make_figures.py
+```
+
+Lệnh này ghi `mo_hinh_de_xuat` và `so_do_thuc_nghiem` (PNG và SVG) vào `docs/figures/`. Sau đó chép hai file PNG sang thư mục `Attachments` của ghi chú đồ án.
+
 ## Cấu trúc hiện tại
 
 ```
 source/
-├─ PLAN.md, README.md, pyproject.toml, requirements-lock.txt
-├─ configs/paths.yaml
-├─ rec/            # schema.py, timeutil.py (các module khác thêm dần theo PLAN.md)
+├─ PLAN.md, SPEC.md, COMPLIANCE.md, README.md, pyproject.toml, requirements-lock.txt
+├─ configs/        # paths, split, days.csv, scenarios, features, thresholds
+├─ rec/            # schema, timeutil, config, manifest, data/ (các module khác thêm dần theo PLAN.md)
 ├─ tests/          # pytest
+├─ manifests/      # hash của từng mốc, CHANGES.md
+├─ docs/figures/   # script vẽ hình của proposal
 └─ contracts/      # Hardhat; contracts/test/ToolchainCheck.sol là contract tạm của giai đoạn 0
 ```

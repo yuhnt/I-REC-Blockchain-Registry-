@@ -1,0 +1,33 @@
+# Mốc 1 – chia ngày (Final Proposal Mục 4, Phụ lục 3.1). Định nghĩa đầy đủ ở SPEC.md mục 2.
+plant_tz: America/Los_Angeles
+range:
+  start: 2018-01-01
+  end: 2023-11-30
+
+# Ngày hợp lệ: đủ dữ liệu ban ngày ở mọi kênh (24 inverter, công tơ, POA tại chỗ).
+valid_day:
+  daytime_poa_wm2: 20        # slot ban ngày: POA tại chỗ trung bình 15 phút > 20 W/m²
+  min_coverage: 0.95         # mỗi kênh có giá trị ở ≥ 95% số slot ban ngày
+  min_daytime_slots: 20
+  min_samples_per_slot: 3    # inverter 5 phút: slot 15 phút cần đủ 3 mẫu
+
+# Ngày lỗi dữ liệu rõ ràng bị loại dù đủ độ phủ: bộ ghi báo 0 thay vì để trống (SPEC.md mục 2).
+data_fault:
+  eta_split: train           # η = trung vị (công tơ / tổng inverter) trên các ngày train không lỗi
+  max_meter_inverter_dev: 0.5   # loại nếu công tơ hoặc tổng inverter cả ngày ≤ 0, hoặc |công tơ / (η · tổng inverter) − 1| > 50%
+  dropped_file: configs/days_dropped.csv
+
+splits:
+  train: [2018, 2019, 2020]
+  val: [2021]
+  test: [2022, 2023]
+
+# Bản sơ bộ (analysis/trackA_01_prep.py) cho 1057 / 360 / 641 = 2058 ngày đủ độ phủ.
+# Sau khi loại 73 ngày lỗi dữ liệu (data_fault) còn lại các con số dưới đây.
+expected_days:
+  train: 1026
+  val: 321
+  test: 638
+  total: 1985
+
+days_file: configs/days.csv  # sinh bằng `python -m rec.data.days`, commit cùng mốc 1

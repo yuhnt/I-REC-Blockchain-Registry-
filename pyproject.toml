@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "matplotlib>=3.8"]  # matplotlib: vẽ hình của proposal (docs/figures)
 
 [tool.setuptools.packages.find]
 include = ["rec*"]

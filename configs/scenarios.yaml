@@ -1,0 +1,130 @@
+# Mốc 1 – kịch bản tấn công và mẫu âm (Final Proposal Bảng 3.2, 3.3). Định nghĩa đầy đủ ở SPEC.md mục 4–5.
+# Mục ghi "design" là lựa chọn thiết kế của nhóm, không lấy từ quy định hay số liệu đo.
+# "Lô" = chứng chỉ của cả nhà máy (một CP) trong một ngày.
+
+plant:
+  cp_id: CP-1
+  issuers: [issuerA, issuerB]
+  inverter_max_ac_kw: 30          # mức clipping quan sát được (ABB TRIO-27.6 định mức 27,6 kW)
+  devices:                        # 6 thiết bị = 6 khối × 4 inverter, cùng một CP
+    B1: [1, 2, 3, 4]
+    B2: [5, 6, 7, 8]
+    B3: [9, 10, 11, 12]
+    B4: [13, 14, 15, 16]
+    B5: [17, 18, 19, 20]
+    B6: [21, 22, 23, 24]
+
+seeds:
+  test: [101, 102, 103, 104, 105]   # chỉ thay đổi phần ngẫu nhiên (nhiễu, ngày nguồn, thiết bị); không tạo thêm ngày
+cases: one_per_eligible_day          # mỗi ngày test đủ điều kiện cho kịch bản là một ca; báo cáo kèm số ngày thật
+
+honest_stream:                    # design
+  request_delay_days: 1           # yêu cầu cho ngày d được nộp vào ngày d + 1
+  transfer_prob: 0.5              # xác suất chứng chỉ của một thiết bị-ngày được chuyển nhượng
+  transfer_delay_days: [0, 30]
+  retire_prob: 0.5                # xác suất người nhận retire
+  retire_delay_days: [0, 60]
+
+reconciliation:                   # B0 tách biệt: gộp CSDL các issuer, chạy lại khóa và ngân sách CP
+  t_rec_days: [7, 30]
+
+day_types:                        # design: theo chỉ số trời quang ngày (NSRDB) = Σ GHI / Σ Clearsky GHI
+  clear: {min: 0.8}
+  partly: {min: 0.5, max: 0.8}
+  cloudy: {max: 0.5}
+
+inverter_outage:                  # định nghĩa "inverter ngừng phát" (L5, ngày đích sunny_fault của D5)
+  off_kw: 0.5                     # inverter báo < 0,5 kW
+  others_median_kw: 5             # trong khi trung vị 24 inverter > 5 kW
+  min_slots: 8                    # kéo dài ≥ 2 giờ (8 slot) ban ngày
+  manual_check_days: 50           # kiểm tay ở giai đoạn 2 trước khi dùng
+
+attacks:
+  D1:
+    regimes: [R1]
+    blocked_at: issuance          # khóa (thiết bị, ngày)
+    params: {}
+  D2:
+    regimes: [R1]
+    blocked_at: issuance
+    params:
+      period_days: [7, 30]        # design: báo cáo tuần và tháng; kỳ ≤ 1 năm và trong một năm dương lịch
+  D3:
+    regimes: [R1]
+    blocked_at: registration      # DeviceRegistry dùng chung từ chối mã thiết bị đã đăng ký
+    params:
+      gap_days: [0, 30]           # khoảng cách hai lần nộp, lấy đều trong đoạn
+  D4a:
+    regimes: [R1]
+    blocked_at: issuance          # ngân sách CP
+    params: {}
+  D4b:
+    regimes: [R1, R2]
+    blocked_at: issuance          # ngân sách CP (R1); ở R2 thành khai tăng O1, do lớp B xử lý
+    params:
+      f: [0.1666667, 0.3333333, 0.5, 1.0]   # 1/6, 1/3, 1/2, 1 theo cấu trúc 6 khối
+      k: [1, 3]
+  D5:
+    regimes: [R1, R2]
+    blocked_at: issuance          # ngân sách CP (R1); ở R2 thành khai tăng O1, do lớp B xử lý
+    params:
+      target_day: [cloudy, sunny_fault]     # ngày Y: nhiều mây, hoặc trời quang có inverter ngừng phát
+      sigma: [0.0, 0.01]                    # nhiễu nhân iid trên từng slot
+      k: [1, 3]                             # thay chuỗi 15 phút của k nguồn ở mức CP bằng chuỗi của ngày X
+      source_day: issued_higher             # design: ngày X chọn ngẫu nhiên trong các ngày đã phát hành có y_X > y_Y
+  D6:
+    regimes: [R1]
+    blocked_at: lifecycle         # chứng chỉ đã retire bị đốt
+    params:
+      variant: [retire_twice, transfer_after_retire]
+  insider:
+    regimes: [R1]
+    blocked_at: no_admin_function # contract không có hàm sửa, xóa, phát hành lại
+    params:
+      action: [update, delete, reissue]
+  M1:
+    regimes: [R2]
+    params:
+      k: [1, 3]
+      s: [1.5, 2.0, 5.0]
+      window_min: [15, 60, 120]             # design: phủ đoạn 15 phút – 2 giờ
+  M2:
+    regimes: [R2]
+    params:
+      k: [1, 2, 3]
+      alpha: [0.10, 0.30, 0.1666667, 0.3333333, 0.5, 1.0]   # 10%, 30% + các mức α = f để so với D4b (H2b)
+  M3:
+    regimes: [R2]
+    params:
+      oracle: [O1, O2, O3]                  # oracle bị lỗi
+      fault: [stuck, missing, clock_shift]
+      duration_h: [1, 6, 24]                # stuck, missing (design: 1 giờ – cả ngày)
+      shift_min: [15, 30, 60]               # clock_shift
+
+negatives:                        # mẫu âm khó, không được chặn
+  L1: {source: data, layer: A, note: "các khối inverter hợp lệ khác nhau sau cùng một CP (§7.6)"}
+  L2: {source: data, layer: B, note: "các ngày trời quang có hình dạng sản lượng gần giống nhau"}
+  L3: {source: generator, layer: A, note: "chuyển issuer: đóng đăng ký cũ rồi đăng ký ở issuer mới (§16.3)"}
+  L4: {source: generator, layer: A, note: "Production Group (§7.7): một bản ghi nhóm thay cho 6 thiết bị, vẫn chịu ngân sách CP"}
+  L5: {source: data, layer: B, note: "inverter ngừng phát (định nghĩa inverter_outage), clipping, đoạn treo, ngày nhiều mây"}
+
+experiments:
+  E1:
+    regime: R1
+    backends: [b0_separate, b0_shared, chain]
+    attacks: [D1, D2, D3, D4a, D4b, D5, D6, insider]
+    negatives: [L1, L3, L4]       # lớp A không được REJECT nhầm
+  E2a:
+    regime: R2
+    configs: [B1, B2, Proposed]
+    attacks: [M1, M2, M3, D4b, D5]
+    negatives: [L2, L5]           # lớp B: REVIEW nhầm
+  E2b:
+    regime: R2
+    configs: [B1, B2, Proposed]
+    k: [1, 2, 3]
+  E3:
+    configs: [B1, B2, Proposed]
+    stream_days: 365
+  ablation:
+    variants: [A1, A2]            # A1: O3 thay O4 làm đầu vào trần AI; A2: hồi quy phân vị tuyến tính thay AI
