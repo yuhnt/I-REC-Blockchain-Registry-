@@ -2,7 +2,7 @@
 
 Tài liệu này cùng các file `configs/split.yaml`, `scenarios.yaml`, `features.yaml`, `thresholds.yaml`, `configs/days.csv` và `configs/days_dropped.csv` tạo thành **mốc 1** của protocol (Final Proposal, Phụ lục 3.3). Sau khi gắn tag `spec-v1`, mọi thay đổi phải ghi vào `manifests/CHANGES.md` kèm lý do. Mô hình AI chỉ được cài đặt sau mốc 2 (`testset-v1`).
 
-Final Proposal là chuẩn. Những chỗ proposal chưa nói rõ được chốt ở đây và đánh dấu **(chốt)**. Đối chiếu với I-REC Code ở `COMPLIANCE.md`.
+Final Proposal là chuẩn. Những chỗ proposal chưa nói rõ được chốt ở đây và đánh dấu **(chốt)**. Đối chiếu với I-REC Code ở `COMPLIANCE.md`; luồng chạy, giao diện contract và định dạng message ở `FLOW.md`.
 
 ## 1. Quy ước
 
@@ -121,7 +121,7 @@ Final Proposal là chuẩn. Những chỗ proposal chưa nói rõ được chố
 ### 6.3 REVIEW và Production Auditor (cách B, như proposal)
 
 - Lô bị REVIEW chưa được MINT, và được lưu kèm bằng chứng (cờ, reason code, `data_root`, báo cáo O1–O4) ở hàng đợi REVIEW trên dashboard.
-- Production Auditor phân xử: lô trung thực được MINT sau khi duyệt, lô gian lận bị bác. Trong thí nghiệm, auditor được giả định **luôn kết luận đúng** (dùng nhãn thật); đây là giới hạn cần ghi rõ. Cái giá của REVIEW nhầm đo bằng khối lượng việc của auditor và lượng MWh bị giữ tạm.
+- Production Auditor phân xử bằng `resolveReview` trên contract (khóa auditor riêng, chỉ đổi trạng thái lô, không mint): lô trung thực được MINT sau khi duyệt, lô gian lận bị bác. Luồng chi tiết ở `FLOW.md` mục 5. Trong thí nghiệm, auditor được giả định **luôn kết luận đúng** (dùng nhãn thật); đây là giới hạn cần ghi rõ. Cái giá của REVIEW nhầm đo bằng khối lượng việc của auditor và lượng MWh bị giữ tạm.
 
 ## 7. Chỉ số
 

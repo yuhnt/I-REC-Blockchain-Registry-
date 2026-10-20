@@ -1,6 +1,6 @@
 # Đồ án A.5 – Registry chứng chỉ I-REC chống double counting
 
-Mã nguồn cho [Final Proposal](<D:/notes/Work/Master/HK1/Blockchain/Đồ án/Proposal/Final Proposal.md>). Kế hoạch code, cấu trúc thư mục và các giai đoạn nằm trong [PLAN.md](PLAN.md).
+Mã nguồn cho [Final Proposal](<D:/notes/Work/Master/HK1/Blockchain/Đồ án/Proposal/Final Proposal.md>). Kế hoạch code, cấu trúc thư mục và các giai đoạn nằm trong [PLAN.md](PLAN.md). Luồng chạy từng bước, giao diện contract và định dạng message nằm trong [FLOW.md](FLOW.md).
 
 Hệ thống có hai lớp tách rời:
 
@@ -98,7 +98,7 @@ Lệnh này ghi `mo_hinh_de_xuat` và `so_do_thuc_nghiem` (PNG và SVG) vào `do
 
 ```
 source/
-├─ PLAN.md, SPEC.md, COMPLIANCE.md, README.md, pyproject.toml, requirements-lock.txt
+├─ PLAN.md, SPEC.md, FLOW.md, COMPLIANCE.md, README.md, pyproject.toml, requirements-lock.txt
 ├─ configs/        # paths, split, days.csv, scenarios, features, thresholds
 ├─ rec/            # schema, timeutil, config, manifest, data/ (các module khác thêm dần theo PLAN.md)
 ├─ tests/          # pytest

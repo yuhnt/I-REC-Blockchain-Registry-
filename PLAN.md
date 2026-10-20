@@ -36,6 +36,8 @@ Máy hiện có: Python 3.11.9 (pandas 2.3, numpy 2.3, PyYAML), Node 22.19, npm 
 source/
 ├─ PLAN.md
 ├─ SPEC.md                   # đặc tả mốc 1: chỉ số, gán nhãn, ngưỡng, quyết định đã chốt
+├─ FLOW.md                   # luồng chạy, giao diện contract, định dạng EIP-712, runner, dashboard
+├─ COMPLIANCE.md             # bảng truy vết điều khoản I-REC → hiện thực, test
 ├─ README.md                 # cách cài, cách chạy từng thí nghiệm
 ├─ pyproject.toml            # package `rec` + dependencies
 ├─ configs/
@@ -115,7 +117,7 @@ Cách này cho phép chạy hai chế độ trên cùng một contract, chỉ kh
 |---|---|
 | `DeviceRegistry` | Đăng ký thiết bị → CP, công suất AC, issuer, ngày đăng ký hiệu lực. Từ chối mã trùng (D3 bị chặn ở đây). Chuyển đăng ký sang issuer khác giữ nguyên mã (§16.3); đóng đăng ký có ngày hiệu lực |
 | `CertificateRegistry` | ERC-1155 theo Wh; `tokenId = keccak256(deviceId, day)`. Giữ **bitmap ngày theo thiết bị** (①) và **ngân sách `issued[cp][day] ≤ o1[cp][day]`** (②). `transfer`; `retire(id, wh, người thụ hưởng, mục đích, nơi tiêu thụ, kỳ báo cáo)` = burn + event `Retired` (§10). Chỉ `DecisionGate` có quyền mint |
-| `DecisionGate` | Nhận `IssueRequest` + báo cáo O1–O4 có chữ ký + `Verdict` có chữ ký. Kiểm tra chữ ký theo allowlist, kỳ phát hành (§8.2), luật công suất ③, rồi gọi `CertificateRegistry` (nơi thực thi ① ②). `Verdict.flags ≠ 0` → event `Review` kèm bằng chứng, không mint |
+| `DecisionGate` | Hai bước. `submitLotEvidence`: một lần mỗi lô, nhận 4 báo cáo O1–O4 và verdict có chữ ký, lưu O1 và trạng thái lô (CLEAR / REVIEW). `issue`: mỗi thiết bị, kiểm đăng ký, kỳ phát hành (§8.2), ①–③ và trạng thái lô, rồi gọi `CertificateRegistry`. Vi phạm lớp A phát `IssueRejected` (không revert); lô REVIEW phát `IssueHeld`. `resolveReview` do khóa auditor gọi để duyệt hoặc bác lô REVIEW. Chi tiết ở `FLOW.md` |
 
 Các quyết định cụ thể:
 

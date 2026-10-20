@@ -54,6 +54,7 @@ def test_oracle_report_validation():
 
 def test_decision_constructors():
     assert Decision.reject(RejectReason.PERIOD).kind is DecisionKind.REJECT
+    assert Decision.reject(RejectReason.LOT_REJECTED).reason.value == "lot_rejected"
     assert Decision.review(Flag.OVER_CEILING | Flag.INCONSISTENT).flags == 5
     assert Decision.mint(1_670_000).wh == 1_670_000
 

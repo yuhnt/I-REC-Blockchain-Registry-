@@ -21,7 +21,7 @@ Bảng truy vết từ điều khoản của I-REC Code v1.11 (10/10/2022, file 
 | §8.5 | Chỉ cấp cho sản lượng đã đo được (measured volume) tại công tơ, làm tròn tới kWh | O1 là số công tơ tại CP; ngân sách CP | Ngân sách CP | Đã thiết kế; đơn vị Wh là đơn giản hóa (mục 3) |
 | §8.5 | Thứ bậc bằng chứng: (a) số đối soát thị trường; (b) công tơ chưa đối soát; (c) chứng từ giao nhận; (d) hệ đo được duyệt | Chế độ R1 = (a), R2 = (b)–(d) | E1 chạy R1, E2 chạy R2 | Đã thiết kế |
 | §8.5 | Bằng chứng phải được xác minh độc lập; Production Auditor xác nhận không có dấu hiệu sửa dữ liệu | REVIEW → auditor; kiểm tra ngẫu nhiên p% số lô | Luồng REVIEW; E2a theo p | Đã thiết kế |
-| §8.7 | Issuer xem xét, có thể yêu cầu thêm thông tin, rồi duyệt hoặc bác kèm lý do | Event `Review` / `Reject` kèm reason code; auditor phân xử (cách B) | Mọi từ chối đều có lý do | Đã thiết kế |
+| §8.7 | Issuer xem xét, có thể yêu cầu thêm thông tin, rồi duyệt hoặc bác kèm lý do | Event `LotReview`, `IssueRejected` kèm mã lý do; auditor phân xử bằng `resolveReview` (cách B, `FLOW.md` mục 5) | Mọi từ chối đều có lý do; chỉ khóa auditor gọi được `resolveReview` | Đã thiết kế |
 | §9.3 | Chuyển quyền sở hữu chứng chỉ | ERC-1155 `transfer` | Chuyển nhượng hợp lệ | Đã thiết kế |
 | §10 | Redemption (retire) không đảo ngược; chứng chỉ đã retire không chuyển được; chỉ một tuyên bố cho mỗi chứng chỉ | `retire` = burn + event | D6 | Đã thiết kế |
 | §10 | Khi retire phải ghi người thụ hưởng, mục đích, nơi tiêu thụ, kỳ báo cáo; không được sửa sau đó | Trường của `Retire` và event `Retired` | Event có đủ trường | Đã thiết kế |

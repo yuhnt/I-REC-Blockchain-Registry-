@@ -44,8 +44,11 @@ class RejectReason(str, Enum):
     KEY = "key"  # ①: (thiết bị, ngày) đã phát hành
     BUDGET = "budget"  # ②: vượt ngân sách CP
     CAPACITY = "capacity"  # ③: vượt luật công suất
-    PERIOD = "period"  # I-REC trang 41: kỳ vắt hai năm, trước ngày đăng ký, sau ngày đóng đăng ký hoặc sau ngày nộp
+    PERIOD = "period"  # I-REC §8.2: kỳ vắt hai năm, trước ngày đăng ký, sau ngày đóng đăng ký hoặc sau ngày nộp
     ORACLE = "oracle"  # chữ ký không hợp lệ, hoặc O1 xung đột với O1 đã lưu
+    LOT_REJECTED = "lot_rejected"  # auditor đã bác lô REVIEW (FLOW.md mục 5)
+    NOT_ISSUER = "not_issuer"  # người gửi không phải issuer hiện tại của thiết bị
+    NOT_REGISTERED = "not_registered"  # thiết bị chưa đăng ký hoặc đăng ký chưa/hết hiệu lực
 
 
 class EventKind(str, Enum):
