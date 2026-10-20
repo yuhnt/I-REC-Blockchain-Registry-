@@ -113,6 +113,7 @@ experiments:
     regime: R1
     backends: [b0_separate, b0_shared, chain]
     attacks: [D1, D2, D3, D4a, D4b, D5, D6, insider]
+    cases_per_attack: 60          # số ngày test ngẫu nhiên được chèn mỗi kịch bản, mỗi seed (lớp A tất định)
     negatives: [L1, L3, L4]       # lớp A không được REJECT nhầm
   E2a:
     regime: R2

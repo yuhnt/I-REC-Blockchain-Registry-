@@ -62,7 +62,8 @@ Final Proposal là chuẩn. Những chỗ proposal chưa nói rõ được chố
 | M2 | Nhân (1 + α) nhất quán vào k nguồn cả ngày | Lớp B |
 | M3 | Một oracle (O1, O2 hoặc O3) kẹt giá trị, mất dữ liệu (1/6/24 giờ) hoặc lệch giờ (15/30/60 phút) | Không phải gian lận; đo độ bền |
 
-- **Số ca (chốt):** mỗi ngày test đủ điều kiện cho một kịch bản là một ca. D4b, M1, M2, M3 dùng cả 638 ngày; D5 nhiều mây dùng các ngày nhiều mây của test (khoảng 44); D5 trời quang có inverter ngừng phát dùng số ngày mà định nghĩa ở mục 5 lọc ra. Mọi kết quả ghi kèm số ngày thật.
+- **Số ca của E1 (chốt):** mỗi kịch bản D1–D6 và insider chèn vào 60 ngày ngẫu nhiên của tập test, 5 seed. Lớp A là tất định nên không cần mọi ngày; 60 ngày đủ cho phân bố exposure window. DCR báo cáo kèm tỷ lệ tấn công của dòng.
+- **Số ca của E2 (chốt):** mỗi ngày test đủ điều kiện cho một kịch bản là một ca. D4b, M1, M2, M3 dùng cả 638 ngày; D5 nhiều mây dùng các ngày nhiều mây của test (khoảng 44); D5 trời quang có inverter ngừng phát dùng số ngày mà định nghĩa ở mục 5 lọc ra. Mọi kết quả ghi kèm số ngày thật.
 - 5 seed (101–105) chỉ thay đổi phần ngẫu nhiên (nhiễu, ngày nguồn X, thiết bị), không tạo thêm ngày.
 - **H2b với D4b là kiểm tra pipeline, không phải kết quả:** O2 báo ở mức CP thì lớp B nhìn D4b giống hệt M2 với α = f, nên kết quả trùng nhau theo cách dựng. Phần có thông tin là D5, vì chuỗi bị thay có hình dạng của một ngày khác.
 
@@ -185,7 +186,7 @@ Production Auditor bốc thăm ngẫu nhiên **p ∈ {0, 1%, 5%} số lô đã M
 | 7 | Trần | Riêng trần 4% (mức chính); AI = Q̂₀.₉₅ · (1 + τ_C) (mục 6.2) |
 | 8 | Thiếu báo cáo | REVIEW; slot thiếu để trống (mục 1, 6.2) |
 | 9 | REVIEW | Cách B: auditor phân xử, giả định luôn đúng (mục 6.3) |
-| 10 | Số ca | Mỗi ngày đủ điều kiện một ca (mục 4.1) |
+| 10 | Số ca | E1: 60 ngày mỗi kịch bản; E2: mỗi ngày đủ điều kiện một ca (mục 4.1) |
 | 11 | Tỉ lệ REVIEW nhầm, tỉ lệ kiểm tra ngẫu nhiên | Quét q và p (mục 8) |
 | 12 | Ngưỡng theo thời gian | Khóa cố định, báo cáo độ trôi trên test (mục 2) |
 | 13 | Quản trị contract | Không mint đặc quyền, không nâng cấp; vai trò Code Manager chỉ tạm khóa và rút chứng chỉ chưa retire, luôn công khai (I-REC §11); insider = "không sửa lặng lẽ được" (mục 3) |
