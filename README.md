@@ -84,6 +84,12 @@ Dựng dataset cho 4 oracle (chạy sau lệnh trên; ghi `artifacts/slots.parqu
 .venv/Scripts/python -m rec.data.dataset
 ```
 
+Sinh tập test (mốc 2; ghi `artifacts/testset/`, chỉ ghi khi bộ kiểm tra generator qua hết):
+
+```bash
+.venv/Scripts/python -m rec.generator.cli
+```
+
 Ghi hoặc kiểm hash của mốc 1:
 
 ```bash

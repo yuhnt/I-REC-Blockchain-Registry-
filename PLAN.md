@@ -154,6 +154,12 @@ Chuyển code từ `analysis/trackA_01_prep.py` và `check_nsrdb_vs_pvdaq.py` v�
 
 ### 4.4 Generator (`rec/generator/`)
 
+**Đã làm** (`python -m rec.generator.cli`, kết quả ở `artifacts/testset/`):
+- E1: mỗi seed có một dòng hợp lệ (khoảng 9.200 sự kiện, gồm L3), một dòng Production Group (L4), và 8 kịch bản tấn công chèn chồng, mỗi kịch bản 60 ca;
+- E2: bảng khoảng 232 nghìn ca, cộng hàm tất định `apply_case`; D5 có 281 ngày đích.
+
+Các điểm lệch so với `spec-v1` ghi ở `manifests/CHANGES.md`.
+
 - **Đầu vào:** `days.parquet`, `scenarios.yaml`, seed.
 - **Đầu ra:** `events.jsonl` (dòng sự kiện + báo cáo O1–O4, có thể đã bị sửa ở k nguồn) và `labels.parquet` (ẩn).
 - **Dòng hợp lệ:** đăng ký 6 thiết bị; mỗi thiết bị mỗi ngày một yêu cầu đúng sản lượng thật; chuyển nhượng; retire; L3 (chuyển đăng ký), L4 (Production Group).

@@ -96,20 +96,33 @@ def _require_day(name: str, value: int) -> None:
         raise ValueError(f"{name} phải là số ngày không âm, nhận {value!r}")
 
 
+GROUP_MAX_CAPACITY_W = 5_000_000  # Production Group: tổng ≤ 5 MW (I-REC §7.7)
+GROUP_MAX_MEMBERS = 50
+
+
 @dataclass(frozen=True, slots=True)
 class Device:
+    """Thiết bị (hoặc Production Group) đăng ký sau một CP; phát hành được từ `effective_day` (I-REC §8.2)."""
+
     device_id: str
     cp_id: str
     ac_capacity_w: int
     issuer: str
+    effective_day: int = 0
+    is_group: bool = False
+    member_count: int = 1
 
     def __post_init__(self) -> None:
         _require_id("device_id", self.device_id)
         _require_id("cp_id", self.cp_id)
         _require_id("issuer", self.issuer)
         _require_wh("ac_capacity_w", self.ac_capacity_w)
+        _require_day("effective_day", self.effective_day)
         if self.ac_capacity_w == 0:
             raise ValueError("ac_capacity_w phải dương")
+        if self.is_group and (self.ac_capacity_w > GROUP_MAX_CAPACITY_W or not 1 <= self.member_count
+                              <= GROUP_MAX_MEMBERS):
+            raise ValueError("Production Group phải ≤ 5 MW và ≤ 50 cơ sở (I-REC §7.7)")
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,6 +245,7 @@ class Transfer:
     sender: str
     recipient: str
     wh: int
+    ref: str = ""  # định danh sự kiện, nối với nhãn ẩn của kịch bản tấn công
 
     def __post_init__(self) -> None:
         for name in ("device_id", "sender", "recipient"):
@@ -252,6 +266,7 @@ class Retire:
     purpose: str
     consumption_location: str
     reporting_period: str
+    ref: str = ""
 
     def __post_init__(self) -> None:
         for name in ("device_id", "holder", "beneficiary", "purpose", "consumption_location", "reporting_period"):
@@ -309,6 +324,7 @@ class OperatorEdit:
     issuer: str
     target_req_id: str
     action: EditAction
+    ref: str = ""
 
     def __post_init__(self) -> None:
         _require_id("issuer", self.issuer)
@@ -348,7 +364,7 @@ class Deregistration:
         _require_day("effective_day", self.effective_day)
 
 
-_PAYLOAD_TYPES: dict[EventKind, type] = {
+PAYLOAD_TYPES: dict[EventKind, type] = {
     EventKind.REGISTER: Device,
     EventKind.TRANSFER_REGISTRATION: RegistrationTransfer,
     EventKind.DEREGISTER: Deregistration,
@@ -374,7 +390,7 @@ class Event:
     def __post_init__(self) -> None:
         if isinstance(self.t, bool) or not isinstance(self.t, int) or self.t < 0:
             raise ValueError("t phải là số nguyên giây không âm")
-        expected = _PAYLOAD_TYPES[self.kind]
+        expected = PAYLOAD_TYPES[self.kind]
         if not isinstance(self.payload, expected):
             raise ValueError(f"sự kiện {self.kind.value} cần payload {expected.__name__}")
 

@@ -9,7 +9,11 @@ def test_digest_ignores_line_endings(tmp_path):
     assert digest(lf) == digest(crlf)
 
 
-def test_milestone_files_exist():
-    for files in MILESTONES.values():
-        for rel in files:
-            assert (ROOT / rel).is_file(), rel
+def test_spec_milestone_files_exist():
+    for rel in MILESTONES["spec-v1"]:
+        assert (ROOT / rel).is_file(), rel
+
+
+def test_glob_entries_expand():
+    from rec.manifest import files
+    assert "rec/generator/cli.py" in files("testset-v1")
