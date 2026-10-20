@@ -78,6 +78,12 @@ Sinh lại danh sách ngày hợp lệ (1.985 ngày sau khi loại 73 ngày lỗ
 .venv/Scripts/python -m rec.data.days
 ```
 
+Dựng dataset cho 4 oracle (chạy sau lệnh trên; ghi `artifacts/slots.parquet` một dòng mỗi slot 15 phút, `artifacts/days.parquet` một dòng mỗi ngày):
+
+```bash
+.venv/Scripts/python -m rec.data.dataset
+```
+
 Ghi hoặc kiểm hash của mốc 1:
 
 ```bash

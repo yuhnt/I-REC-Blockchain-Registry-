@@ -5,6 +5,7 @@ rồi mới gắn múi giờ nhà máy và đổi sang UTC; giờ lặp lúc đ�
 """
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -15,6 +16,37 @@ from rec.timeutil import localize_plant
 ELECTRICAL = "2107_electrical_data_v1.csv"
 METER = "2107_meter_15m_data.csv"
 IRRADIANCE = "2107_irradiance_data.csv"
+ENVIRONMENT = "2107_environment_data.csv"
+METADATA = "2107_system_metadata.json"
+
+
+def read_metadata(directory: Path) -> dict[str, float]:
+    """Tọa độ, góc nghiêng, hướng và công suất DC của nhà máy, lấy từ metadata của PVDAQ."""
+    m = json.loads((directory / METADATA).read_text(encoding="utf-8"))
+    mount = next(iter(m["Mount"].values()))
+    return {
+        "latitude": float(m["Site"]["latitude"]),
+        "longitude": float(m["Site"]["longitude"]),
+        "tilt": float(mount["tilt"]),
+        "azimuth": float(mount["azimuth"]),
+        "dc_kw": float(m["System"]["power(kW DC)"]),
+    }
+
+
+def read_site_temperature(directory: Path) -> pd.Series:
+    """Nhiệt độ không khí tại chỗ (°C), trung bình 15 phút, chỉ mục UTC nhãn cuối kỳ.
+
+    Cảm biến ghi bằng °F (đã kiểm: sau khi đổi, lệch NSRDB trung vị 0,8 °C).
+    """
+    e = pd.read_csv(directory / ENVIRONMENT, parse_dates=["measured_on"]).set_index("measured_on")
+    e = e[~e.index.duplicated()].sort_index()
+    t = ((e.iloc[:, 0] - 32) / 1.8).rename("site_temp_c")
+    t = t.resample("15min", label="right", closed="right").mean()
+    idx = localize_plant(t.index)
+    keep = idx.notna()
+    t = t[keep]
+    t.index = idx[keep].tz_convert("UTC")
+    return t
 
 _INV_AC_POWER = re.compile(r"inv_(\d\d)_ac_power_")
 

@@ -148,7 +148,9 @@ Chuyển code từ `analysis/trackA_01_prep.py` và `check_nsrdb_vs_pvdaq.py` v�
 3. Gắn cờ: thiếu dữ liệu, đoạn treo, clipping (30 kW), ban đêm, inverter ngừng phát (định nghĩa trong `scenarios.yaml`, kiểm tay 50 ngày).
 4. Tạo 6 thiết bị (khối 4 inverter) sau `CP-1`.
 5. Tính POA từ NSRDB qua pvlib (nghiêng 25°, hướng 180°, tọa độ 38.996306, −122.134111 trong metadata); đặc trưng ngày; phân loại ngày (quang / mây vừa / nhiều mây).
-6. Ghi `artifacts/p2107_15m.parquet`, `artifacts/days.parquet` (một dòng mỗi ngày: sản lượng thật theo khối và CP, đặc trưng O4, loại ngày, split).
+6. Ghi `artifacts/p2107_15m.parquet`, `artifacts/slots.parquet` và `artifacts/days.parquet` (một dòng mỗi ngày: sản lượng thật theo khối và CP, giá trị ngày của O1–O4, độ phủ ban ngày từng oracle, đặc trưng O4, loại ngày, cờ inverter ngừng phát, split).
+
+**Đã làm** (`rec/data/dataset.py`, `rec/data/nsrdb.py`): 190.520 slot của 1.985 ngày; công tơ / tổng inverter trung vị 0,984; độ phủ ban ngày trung vị 100% ở cả 4 oracle; ngưỡng POA ứng với clipping 806 W/m² (720 kW AC / 893 kW DC). Cờ inverter ngừng phát bật ở 1.032/1.985 ngày (52%) khi ban ngày tính theo vị trí mặt trời, cao hơn mức 47% đo theo giữa trưa trước đây. Cần kiểm tay 50 ngày trước khi dùng định nghĩa này. Mã hóa `data_root` ở `rec/oracles/encoding.py`.
 
 ### 4.4 Generator (`rec/generator/`)
 
