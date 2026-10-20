@@ -176,7 +176,7 @@ Các điểm lệch so với `spec-v1` ghi ở `manifests/CHANGES.md`.
 | Bước | Công thức | Dùng ở |
 |---|---|---|
 | ① Đủ báo cáo | Thiếu báo cáo, hoặc `slots_present` < 95% số slot ban ngày (theo vị trí mặt trời) → REVIEW | B2, Proposed |
-| ② Nhất quán (a), một phía | O1 / (η·O2) − 1 > τ₁₂ và O1 / E₃ − 1 > τ₁₃, ở mức ngày và slot; E₃ từ POA và nhiệt độ tại chỗ (°C) | B2, Proposed |
+| ② Nhất quán (a), một phía | O1 / (η·O2) − 1 > τ₁₂ và O1 / E₃ − 1 > τ₁₃, ở mức ngày và slot; E₃ từ POA và nhiệt độ tại chỗ (°C). Biến thể hậu kiểm `day_only` bỏ mức slot (`manifests/CHANGES.md`) | B2, Proposed |
 | ③ Trần | B2: O1 > PVWatts(NSRDB) · (1 + τ₄). Proposed: O1 > Q̂₀.₉₅(x) · (1 + τ_C) | B2 / Proposed |
 
 Luật công suất ③ và luật kỳ phát hành thuộc lớp A (contract), áp dụng cho mọi cấu hình. Luật khớp ngày cũ (c) đã bỏ.
@@ -229,7 +229,7 @@ Streamlit + web3.py đọc event từ Hardhat:
 | 1. Đặc tả (mốc 1) | `split.yaml`, `scenarios.yaml`, `features.yaml`, `thresholds.yaml`; `SPEC.md`; `COMPLIANCE.md`; `rec/config.py` kiểm tính nhất quán; `configs/days.csv`, `days_dropped.csv` từ `rec.data.days` | **Tag `spec-v1`** + `manifests/spec-v1.sha256` |
 | 2. Dữ liệu + generator (mốc 2) | `rec/data`, `rec/physics`; tính lại sai lệch vệ tinh và độ rộng trần theo loại ngày trên 2018–2021 (ngày địa phương); kiểm tay 50 ngày inverter ngừng phát; `rec/generator` + bộ kiểm tra; sinh tập test | Bộ kiểm tra generator qua; **tag `testset-v1`** + sha256 tập test |
 | 3. Lớp A | 3 contract + test Hardhat (mang mã điều khoản I-REC); `sqlite_registry` (2 biến thể); `chain_registry`; E1 | D1–D6 bị chặn đúng điểm chặn trên SQLite dùng chung và chain; L1, L3, L4 không bị REJECT; bảng E1 ra được |
-| 4. Lớp B | `oracles` + signer; `checks`; `model` (train, calibrate); `gate/sim.py`, `gate/auditor.py`; `metrics`; E2a, E2b chạy off-chain | Bảng E2a, E2b có khoảng tin cậy, ở mọi mức tỉ lệ REVIEW nhầm; test chặn rò đặc trưng O1–O3 qua |
+| 4. Lớp B | `oracles` + signer; `checks`; `model` (train, calibrate); `gate/sim.py`, `gate/auditor.py`; `metrics`; E2a, E2b chạy off-chain | Bảng E2a, E2b có khoảng tin cậy, ở mọi mức tỉ lệ REVIEW nhầm; test chặn rò đặc trưng O1–O3 qua. **Đã chạy off-chain** (commit `b76c094` là bản đăng ký trước; biến thể hậu kiểm `day_only`); kết quả ở [RESULTS.md](RESULTS.md). Còn `gate/auditor.py` |
 | 5. Tích hợp | Verifier ký `Verdict`; nối vào `DecisionGate`; kho file theo `data_root`; test parity; E3; dashboard; ablation | Parity 100%; bảng E3; dashboard hiện đủ lineage |
 | 6. Kết quả | `run_all` sinh lại toàn bộ bảng và hình từ tag; `manifests/results.sha256` | Chạy lại trên máy khác ra cùng số |
 
@@ -273,8 +273,9 @@ python -m rec.data.preprocess --paths configs/paths.yaml
 python -m rec.generator.cli --scenarios configs/scenarios.yaml --split test
 cd contracts && npx hardhat test
 python -m rec.experiments.e1
-python -m rec.experiments.e2a
-python -m rec.experiments.e2b
+python -m rec.experiments.e2 --variant prereg     # E2a + E2b, đúng spec-v1
+python -m rec.experiments.e2 --select             # chọn biến thể hậu kiểm, chỉ trên val
+python -m rec.experiments.e2 --variant day_only   # biến thể hậu kiểm đã chọn
 python -m rec.experiments.e3
 streamlit run dashboard/app.py
 python -m rec.experiments.run_all

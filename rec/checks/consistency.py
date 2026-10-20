@@ -53,24 +53,40 @@ def fit(series_by_day: dict, sun_by_day: dict, temp_by_day: dict, days: list[int
     return ConsistencyModel(eta=eta, beta=float(coef[0]), gamma=float(coef[1] / coef[0]), cap_slot_wh=cap_slot_wh)
 
 
-def _ratio_stats(num: np.ndarray, den: np.ndarray, mask: np.ndarray, slot_mask: np.ndarray) -> tuple[float, float]:
+def _ratio_stats(num: np.ndarray, den: np.ndarray, mask: np.ndarray, big: float, window: int | None
+                 ) -> tuple[float, float]:
+    """(tỷ số theo ngày − 1, max theo cửa sổ `window` slot − 1).
+
+    Cửa sổ chỉ được xét khi đủ `window` slot có số liệu và mẫu số ≥ big × window.
+    window = 1 là cách tính đăng ký trước (spec-v1); None bỏ thống kê theo slot (manifests/CHANGES.md).
+    """
     if not mask.any() or den[mask].sum() <= 0:
         return np.nan, np.nan
-    day = num[mask].sum() / den[mask].sum() - 1
-    sm = mask & slot_mask
-    slot = float(np.max(num[sm] / den[sm]) - 1) if sm.any() else np.nan
-    return float(day), slot
+    day = float(num[mask].sum() / den[mask].sum() - 1)
+    if window is None:
+        return day, np.nan
+    k = np.ones(window)
+    ns = np.convolve(np.where(mask, num, 0.0), k, "valid")
+    ds = np.convolve(np.where(mask, den, 0.0), k, "valid")
+    cs = np.convolve(mask.astype(float), k, "valid")
+    ok = (cs == window) & (ds >= big * window)
+    slot = float(np.max(ns[ok] / ds[ok]) - 1) if ok.any() else np.nan
+    return day, slot
 
 
-def stats(series: dict, sun: np.ndarray, temp: np.ndarray, m: ConsistencyModel) -> dict[str, float]:
+def stats(series: dict, sun: np.ndarray, temp: np.ndarray, m: ConsistencyModel, window: int | None = 1
+          ) -> dict[str, float]:
     o1, o2, o3 = series[OracleId.O1], series[OracleId.O2], series[OracleId.O3]
     big = m.min_frac * m.cap_slot_wh
     m12 = sun & ~np.isnan(o1) & ~np.isnan(o2)
-    r12d, r12s = _ratio_stats(o1, m.eta * o2, m12, m.eta * np.nan_to_num(o2) >= big)
+    r12d, r12s = _ratio_stats(o1, m.eta * np.nan_to_num(o2), m12, big, window)
     e3 = m.e3(o3, temp)
     m13 = sun & ~np.isnan(o1) & ~np.isnan(e3)
-    r13d, r13s = _ratio_stats(o1, e3, m13, np.nan_to_num(e3) >= big)
+    r13d, r13s = _ratio_stats(o1, np.nan_to_num(e3), m13, big, window)
     return {"r12_day": r12d, "r12_slot": r12s, "r13_day": r13d, "r13_slot": r13s}
+
+
+VARIANTS = {"prereg": 1, "hour": 4, "day_only": None}  # cửa sổ của thống kê theo slot
 
 
 def coverage(series: dict, sun: np.ndarray) -> dict[str, float]:

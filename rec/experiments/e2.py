@@ -1,7 +1,10 @@
 """E2 (RQ2): khớp lớp B trên train, chọn ngưỡng trên val, đánh giá trên tập test đã khóa (testset-v1).
 
-Chạy: python -m rec.experiments.e2
-Ghi vào artifacts/model/ (mô hình, ngưỡng) và artifacts/results/ (e2a.csv, e2a_honest.csv, e2b.csv, e2b_rule.json).
+Chạy: python -m rec.experiments.e2 [--variant prereg|hour|day_only] [--select]
+  --variant  cách tính thống kê nhất quán theo slot (mặc định prereg = đúng spec-v1; xem manifests/CHANGES.md)
+  --select   chỉ chọn biến thể trên val (không chạy tập test), ghi artifacts/results/selection.json
+Ghi vào artifacts/model/<biến thể>/ và artifacts/results/<biến thể>/ (e2a.csv, e2a_honest.csv, e2b.csv,
+e2b_rule.json).
 Chạy off-chain qua rec/gate/sim.py; test parity với chain làm ở giai đoạn 5.
 """
 from __future__ import annotations
@@ -14,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 from rec import config
-from rec.checks.consistency import STATS, coverage, fit, stats
+from rec.checks.consistency import STATS, VARIANTS, coverage, fit, stats
 from rec.data import pvdaq
 from rec.gate.sim import CHECKED_ORACLES, PROFILES, device_caps, layer_a, o1_report
 from rec.generator.cases_e2 import apply_case
@@ -27,19 +30,22 @@ from rec.schema import OracleId
 
 SLOT_HOURS = 0.25
 CEILING_BASE = {"B2": "pv", "Proposed": "ai", "A1": "ai_o3", "A2": "ai_linear"}
+_CTX = ("thr", "devices", "caps", "cp_cap_w", "min_cov", "artifacts", "days_df", "data", "temps", "split", "cons",
+        "pv_scale", "models", "base_day", "hs", "tau_cons", "q_cons", "cons_rate", "sweep", "tau_ceil", "ceil_rate")
+SELECT_SLACK = 0.005  # `hour` được chọn nếu kém `day_only` không quá 0,5 điểm phần trăm (CHANGES.md)
 
 
-def _lot_row(series: dict, dd, temp: np.ndarray, cons) -> dict:
+def _lot_row(series: dict, dd, temp: np.ndarray, cons, window) -> dict:
     o1_day, o1_max = o1_report(series[OracleId.O1])
     cov = coverage({o: series[o] for o in CHECKED_ORACLES}, dd.sun)
     row = {"o1_day": o1_day, "o1_max": o1_max, "sun_slots": int(dd.sun.sum()), "cov_min": min(cov.values()),
            "o3_total": float(np.nansum(series[OracleId.O3])), "y_wh": dd.y_wh}
-    row.update(stats(series, dd.sun, temp, cons))
+    row.update(stats(series, dd.sun, temp, cons, window))
     return row
 
 
-def main() -> int:
-    sys.stdout.reconfigure(encoding="utf-8")
+def _fit_and_calibrate(window) -> dict:
+    """Khớp lớp B trên train và chọn ngưỡng trên val; không đụng tới tập test."""
     scen, thr = config.load("scenarios"), config.load("thresholds")
     plant = scen["plant"]
     devices = list(plant["devices"])
@@ -47,8 +53,6 @@ def main() -> int:
     cp_cap_w = INVERTER_MAX_W * sum(len(v) for v in plant["devices"].values())
     min_cov = thr["completeness"]["min_daytime_coverage"]
     artifacts = config.resolve_path("artifacts")
-    (artifacts / "model").mkdir(exist_ok=True)
-    (artifacts / "results").mkdir(exist_ok=True)
 
     days_df, data = load_days()
     days_df = days_df.set_index("day")
@@ -75,7 +79,7 @@ def main() -> int:
                 "ai_o3": pd.Series(ai.predict(models["ai_o3"], Xa1), index=days_df.index)}
 
     # 2. Thống kê của lô trung thực, chọn ngưỡng trên val.
-    hs = pd.DataFrame({d: _lot_row(data[d].series, data[d], temps[d], cons) for d in data}).T
+    hs = pd.DataFrame({d: _lot_row(data[d].series, data[d], temps[d], cons, window) for d in data}).T
     hs = hs.apply(pd.to_numeric)
     tau_cons, q_cons, cons_rate = consistency_thresholds(hs.loc[split["val"], list(STATS)],
                                                          thr["consistency_a"]["false_review"])
@@ -86,13 +90,55 @@ def main() -> int:
             t, r = ceiling_tau(hs.loc[split["val"], "y_wh"].to_numpy(float), base_day[base].loc[split["val"]].to_numpy(),
                                q)
             tau_ceil[(cfg, q)], ceil_rate[(cfg, q)] = t, r
-    params = {"consistency": cons.to_dict(), "tau_consistency": tau_cons, "q_consistency": q_cons,
+    return {k: v for k, v in locals().items() if k in _CTX}
+
+
+def select_variant() -> int:
+    """Chọn biến thể theo tiêu chí ghi trước trong CHANGES.md, chỉ dùng train và val."""
+    rows = {}
+    for variant, window in VARIANTS.items():
+        ctx = _fit_and_calibrate(window)
+        val, prof, q = ctx["hs"].loc[ctx["split"]["val"]], PROFILES["Proposed"], ctx["thr"]["ceiling"]["false_review_main"]
+        base = ctx["base_day"]["ai"].loc[ctx["split"]["val"]].to_numpy()
+        s = lmax_scale(val, 1, ctx["tau_cons"], prof, base, ctx["tau_ceil"][("Proposed", q)], ctx["min_cov"],
+                       ctx["cp_cap_w"])
+        rows[variant] = {"slot_window": window, "lmax_val_proposed_k1": lmax(val["y_wh"].to_numpy(float), s),
+                         "q_consistency": ctx["q_cons"],
+                         "tau_consistency": ctx["tau_cons"], "consistency_val_rate": ctx["cons_rate"]}
+        print(variant, "→ LMAX val (Proposed, k = 1) =", round(rows[variant]["lmax_val_proposed_k1"], 4),
+              "| q =", round(ctx["q_cons"], 4))
+    score = {v: r["lmax_val_proposed_k1"] for v, r in rows.items()}
+    chosen = min(score, key=score.get)
+    if chosen == "day_only" and score["hour"] - score["day_only"] <= SELECT_SLACK:
+        chosen = "hour"
+    out = {"criterion": "manifests/CHANGES.md, mục sau lần chạy E2 đăng ký trước", "variants": rows, "chosen": chosen}
+    path = config.resolve_path("artifacts") / "results" / "selection.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
+    print("Chọn:", chosen)
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
+    if "--select" in argv:
+        return select_variant()
+    variant = argv[argv.index("--variant") + 1] if "--variant" in argv else "prereg"
+    window = VARIANTS[variant]
+    ctx = _fit_and_calibrate(window)
+    (thr, devices, caps, cp_cap_w, min_cov, artifacts, days_df, data, temps, split,
+     cons, pv_scale, models, base_day, hs, tau_cons, q_cons, cons_rate, sweep, tau_ceil, ceil_rate) = (ctx[k] for k in _CTX)
+    model_dir, res_dir = artifacts / "model" / variant, artifacts / "results" / variant
+    model_dir.mkdir(parents=True, exist_ok=True)
+    res_dir.mkdir(parents=True, exist_ok=True)
+    params = {"variant": variant, "slot_window": window, "consistency": cons.to_dict(),
+              "tau_consistency": tau_cons, "q_consistency": q_cons,
               "consistency_val_rate": cons_rate, "pv_scale": pv_scale,
               "tau_ceiling": {f"{c}@{q}": v for (c, q), v in tau_ceil.items()},
               "ceiling_val_rate": {f"{c}@{q}": v for (c, q), v in ceil_rate.items()},
               "model_hash": {k: ai.model_hash(m) for k, m in models.items()}}
-    (artifacts / "model" / "layer_b.json").write_text(json.dumps(params, indent=2), encoding="utf-8")
-    (artifacts / "model" / "models.pkl").write_bytes(pickle.dumps(models))
+    (model_dir / "layer_b.json").write_text(json.dumps(params, indent=2), encoding="utf-8")
+    (model_dir / "models.pkl").write_bytes(pickle.dumps(models))
 
     # 3. E2a: mọi ca của tập test đã khóa.
     cases = pd.read_parquet(artifacts / "testset" / "e2" / "cases.parquet")
@@ -101,7 +147,7 @@ def main() -> int:
     for row in cases.to_dict("records"):
         applied = apply_case(row, data, devices)
         dd = data[int(row["day"])]
-        lot = _lot_row(applied.series, dd, temps[dd.day], cons)
+        lot = _lot_row(applied.series, dd, temps[dd.day], cons, window)
         reasons = layer_a(applied.requests, lot["o1_day"], lot["o1_max"], lot["sun_slots"], caps, cp_cap_w)
         lot["minted_a_wh"] = sum(wh for (_, _, wh), r in zip(applied.requests, reasons) if r is None)
         lot["a_reject"] = any(r is not None for r in reasons)
@@ -126,8 +172,8 @@ def main() -> int:
             honest_tables.append(honest)
     e2a = pd.concat(tables, ignore_index=True)
     e2a_honest = pd.concat(honest_tables, ignore_index=True)
-    e2a.to_csv(artifacts / "results" / "e2a.csv", index=False)
-    e2a_honest.to_csv(artifacts / "results" / "e2a_honest.csv", index=False)
+    e2a.to_csv(res_dir / "e2a.csv", index=False)
+    e2a_honest.to_csv(res_dir / "e2a_honest.csv", index=False)
 
     # 4. E2b: LMAX giải tích trên lô trung thực của test.
     test = hs.loc[split["test"]]
@@ -149,13 +195,14 @@ def main() -> int:
                     rec[f"lmax_{t}"] = lmax(yt[m], s[m])
                 lrows.append(rec)
     e2b = pd.DataFrame(lrows)
-    e2b.to_csv(artifacts / "results" / "e2b.csv", index=False)
+    e2b.to_csv(res_dir / "e2b.csv", index=False)
     rule = {}
     for q in (thr["ceiling"]["false_review_main"], min(sweep)):
         d, lo, hi = bootstrap_diff(yt, scales[("B2", q, 3)], scales[("Proposed", q, 3)])
         rule[str(q)] = {"lmax_B2_minus_Proposed_k3": d, "ci95": [lo, hi]}
-    (artifacts / "results" / "e2b_rule.json").write_text(json.dumps(rule, indent=2), encoding="utf-8")
+    (res_dir / "e2b_rule.json").write_text(json.dumps(rule, indent=2), encoding="utf-8")
 
+    print("Biến thể:", variant)
     print("Ngưỡng nhất quán (q =", round(q_cons, 4), ", REVIEW nhầm trên val =", round(cons_rate, 4), "):",
           {k: round(v, 4) for k, v in tau_cons.items()})
     print("η =", round(cons.eta, 4), "| β =", round(cons.beta, 2), "| γ =", round(cons.gamma, 5),
@@ -173,4 +220,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

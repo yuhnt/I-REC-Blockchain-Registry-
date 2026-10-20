@@ -103,7 +103,7 @@ Các bước:
 
 1. **Thu số liệu (ngày d).** Mỗi oracle gom chuỗi 15 phút cho CP-1.
 2. **Báo cáo (d+1, 00:30).** Mỗi oracle tính `valueDay`, `maxSlot`, `slotsPresent`, `dataRoot`; lưu file vào kho; ký `OracleReport`; gửi cho verifier.
-3. **Lớp B (d+1, 00:45).** Verifier đọc lại chuỗi từ kho, kiểm hash, rồi chạy ba bước theo cấu hình (B1, B2, Proposed; SPEC mục 6.2). Kết quả là `Verdict` kèm file reason code trong kho. Cấu hình B1 chỉ đặt `sunSlots`, không bật cờ nào.
+3. **Lớp B (d+1, 00:45).** Verifier đọc lại chuỗi từ kho, kiểm hash, rồi chạy ba bước theo cấu hình (B1, B2, Proposed; SPEC mục 6.2). Kết quả là `Verdict` kèm file reason code trong kho. Cấu hình B1 chỉ đặt `sunSlots`, không bật cờ nào. Tham số và ngưỡng của lớp B được đọc từ `artifacts/model/<biến thể>/layer_b.json`. Mặc định là `prereg`, đúng `spec-v1`; biến thể hậu kiểm `day_only` bỏ thống kê nhất quán theo slot (`manifests/CHANGES.md`). Hash mô hình trong `Verdict` lấy từ file này.
 4. **Gửi bằng chứng của lô.** Issuer gọi `submitLotEvidence` **một lần cho mỗi lô**. Contract:
    - kiểm chữ ký 4 báo cáo, chữ ký verdict và `reportsHash`;
    - lưu O1 của (CP, ngày) ở lần đầu; nếu đã có O1 khác thì phát `O1Conflict` và từ chối;

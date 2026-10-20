@@ -84,3 +84,26 @@ def test_decide_b1_never_reviews():
     tau = {"r12_day": -1, "r12_slot": -1, "r13_day": -1, "r13_slot": -1}
     assert not decide(feat, PROFILES["B1"], tau, None, None, 0.95)["flag_b"].iloc[0]
     assert decide(feat, PROFILES["B2"], tau, np.array([1e6]), 0.1, 0.95)["flag_b"].iloc[0]
+
+
+def test_slot_window_variants():
+    m = ConsistencyModel(eta=0.98, beta=100_000 * 0.98 / 150, gamma=0.0, cap_slot_wh=CAP_SLOT)
+    s, sun = _series()
+    s[OracleId.O1][40] *= 3.0  # một slot tăng gấp 3
+    t = np.full(96, 25.0)
+    per_slot = stats(s, sun, t, m, window=1)
+    assert per_slot["r12_slot"] == pytest.approx(2.0)          # đúng cách tính spec-v1
+    assert stats(s, sun, t, m, window=4)["r12_slot"] == pytest.approx(0.5)  # (3 + 1 + 1 + 1) / 4 − 1
+    day_only = stats(s, sun, t, m, window=None)
+    assert np.isnan(day_only["r12_slot"]) and np.isnan(day_only["r13_slot"])
+    assert day_only["r12_day"] == pytest.approx(per_slot["r12_day"])
+
+
+def test_slot_window_skips_incomplete_windows():
+    m = ConsistencyModel(eta=0.98, beta=100_000 * 0.98 / 150, gamma=0.0, cap_slot_wh=CAP_SLOT)
+    s, sun = _series()
+    s[OracleId.O1][40] *= 3.0
+    s[OracleId.O2][41] = np.nan  # các cửa sổ 38–41, 39–42, 40–43 bị loại vì thiếu slot 41
+    t = np.full(96, 25.0)
+    r = stats(s, sun, t, m, window=4)["r12_slot"]
+    assert r == pytest.approx(0.5)  # chỉ còn cửa sổ 37–40 đủ số liệu

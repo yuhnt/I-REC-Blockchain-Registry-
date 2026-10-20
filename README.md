@@ -90,6 +90,14 @@ Sinh tập test (mốc 2; ghi `artifacts/testset/`, chỉ ghi khi bộ kiểm tr
 .venv/Scripts/python -m rec.generator.cli
 ```
 
+Chạy E2 off-chain (khớp lớp B trên train, chọn ngưỡng trên val, đánh giá trên tập test đã khóa). Kết quả ghi vào `artifacts/results/<biến thể>/`, tóm tắt ở [RESULTS.md](RESULTS.md):
+
+```bash
+.venv/Scripts/python -m rec.experiments.e2 --variant prereg
+```
+
+`prereg` là cách tính đúng `spec-v1`. `--select` chọn biến thể hậu kiểm của luật nhất quán, chỉ dùng train và val. `--variant day_only` chạy biến thể đã chọn. Xem `manifests/CHANGES.md`.
+
 Ghi hoặc kiểm hash của mốc 1:
 
 ```bash
@@ -110,9 +118,9 @@ Lệnh này ghi `mo_hinh_de_xuat` và `so_do_thuc_nghiem` (PNG và SVG) vào `do
 
 ```
 source/
-├─ PLAN.md, SPEC.md, FLOW.md, COMPLIANCE.md, README.md, pyproject.toml, requirements-lock.txt
+├─ PLAN.md, SPEC.md, FLOW.md, COMPLIANCE.md, RESULTS.md, README.md, pyproject.toml, requirements-lock.txt
 ├─ configs/        # paths, split, days.csv, scenarios, features, thresholds
-├─ rec/            # schema, timeutil, config, manifest, data/ (các module khác thêm dần theo PLAN.md)
+├─ rec/            # schema, timeutil, config, manifest; data/, oracles/, generator/, physics/, checks/, model/, gate/, metrics/, experiments/
 ├─ tests/          # pytest
 ├─ manifests/      # hash của từng mốc, CHANGES.md
 ├─ docs/figures/   # script vẽ hình của proposal
