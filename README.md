@@ -1,6 +1,6 @@
-# Đồ án A.5 – Registry chứng chỉ I-REC chống double counting
+# Registry chứng chỉ I-REC chống double counting
 
-Mã nguồn cho [Final Proposal](<D:/notes/Work/Master/HK1/Blockchain/Đồ án/Proposal/Final Proposal.md>). Kế hoạch code, cấu trúc thư mục và các giai đoạn nằm trong [PLAN.md](PLAN.md). Luồng chạy từng bước, giao diện contract và định dạng message nằm trong [FLOW.md](FLOW.md).
+Kế hoạch code, cấu trúc thư mục và các giai đoạn nằm trong [PLAN.md](PLAN.md). Luồng chạy từng bước, giao diện contract và định dạng message nằm trong [FLOW.md](FLOW.md).
 
 Hệ thống có hai lớp tách rời:
 
