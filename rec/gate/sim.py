@@ -41,15 +41,17 @@ def o1_report(values: np.ndarray) -> tuple[int, int]:
 
 def layer_a(requests: list[tuple[str, str, int]], o1_day: int, o1_max_slot: int, sun_slots: int,
             device_cap_w: dict[str, int], cp_cap_w: int) -> list[str | None]:
-    """Lý do REJECT của từng yêu cầu (None = qua lớp A), theo thứ tự gửi."""
-    if o1_max_slot > cp_cap_w * SLOT_HOURS or o1_day > cp_cap_w * sun_slots * SLOT_HOURS:
-        return ["capacity"] * len(requests)  # báo cáo O1 vượt giới hạn vật lý của CP
+    """Lý do REJECT của từng yêu cầu (None = qua lớp A), theo thứ tự gửi.
+
+    Cùng thứ tự với DecisionGate.issue (FLOW mục 4): ② ngân sách trước, rồi ③ công suất của thiết bị và của lô.
+    """
+    lot_over = o1_max_slot > cp_cap_w * SLOT_HOURS or o1_day > cp_cap_w * sun_slots * SLOT_HOURS
     out, issued = [], 0
     for _, device, wh in requests:
-        if wh > device_cap_w[device] * sun_slots * SLOT_HOURS:
-            out.append("capacity")
-        elif issued + wh > o1_day:
+        if issued + wh > o1_day:
             out.append("budget")
+        elif lot_over or wh > device_cap_w[device] * sun_slots * SLOT_HOURS:
+            out.append("capacity")  # vượt công suất thiết bị, hoặc báo cáo O1 vượt giới hạn vật lý của CP
         else:
             out.append(None)
             issued += wh

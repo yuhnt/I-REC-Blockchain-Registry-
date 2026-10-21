@@ -61,6 +61,9 @@ def test_layer_a_capacity_and_budget():
     over = layer_a([("A", "B1", 10)], o1_day=10, o1_max_slot=70_000, sun_slots=48, device_cap_w=caps,
                    cp_cap_w=240_000)
     assert over == ["capacity"]  # slot O1 vượt công suất CP × 0,25 h
+    both = layer_a([("A", "B1", 2_000_000)], o1_day=1000, o1_max_slot=100, sun_slots=48, device_cap_w=caps,
+                   cp_cap_w=240_000)
+    assert both == ["budget"]  # vi phạm cả hai: ngân sách xét trước, như contract
 
 
 def _day_table(r12=0.0, y=1e6):

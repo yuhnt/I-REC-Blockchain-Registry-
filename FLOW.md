@@ -117,7 +117,7 @@ Các bước:
 6. **Kết cục.**
    - MINT: đánh dấu khóa, cộng ngân sách, mint cho địa chỉ nhà máy, phát `Issued`.
    - Vi phạm lớp A: **không revert**, mà phát `IssueRejected(reqId, lý do)` để lý do được lưu công khai. Chỉ revert khi người gọi không có quyền hoặc dữ liệu sai định dạng.
-   - Lô REVIEW: phát `IssueHeld`, không lưu yêu cầu. Issuer gửi lại sau khi auditor duyệt.
+   - Lô REVIEW: phát `IssueHeld`, không lưu yêu cầu. Issuer gửi lại sau khi auditor duyệt. Yêu cầu bị giữ chưa được MINT nên **không chiếm ngân sách CP**: ở lượt đầu, mỗi yêu cầu chỉ bị so với lượng đã MINT; khi gửi lại sau khi duyệt, ngân sách cộng dồn theo thứ tự gửi. Bộ test parity mô hình hóa đúng điều này.
    - Yêu cầu nhiều ngày (D2) đi qua các bước trên cho từng ngày trong kỳ; chỉ cần một ngày vi phạm là cả yêu cầu bị từ chối.
 
 ## 5. Nhánh REVIEW: auditor phân xử (cách B)
@@ -232,6 +232,8 @@ Mã lý do của `IssueRejected` khớp `rec.schema.RejectReason`: `KEY`, `BUDGE
 
 Chỉ hai backend SQLite có `operator_edit` (UPDATE / DELETE / phát hành lại, không để dấu vết) để chạy kịch bản insider. Trên chain không có thao tác tương đương; thứ gần nhất là `withdraw` của Code Manager, và nó luôn để lại event. Khi chạy insider trên chain, runner cho issuer gọi `withdraw`; lời gọi revert `NotCodeManager`.
 
+Verifier: `rec/gate/verifier.py` đọc tham số đã khóa (`artifacts/model/<biến thể>/layer_b.json`, `models.pkl`), tính cờ bằng đúng các hàm của mô phỏng off-chain, và trả `flags`, `ceilingWh`, `sunSlots`, `modelHash` (keccak của hai file tham số cùng cấu hình), cùng file reason code (lưu trong kho file, `reasonsHash` là keccak của nội dung). Kho file: `rec/oracles/store.py`.
+
 Cài đặt: `rec/registry/base.py`, `sqlite_registry.py` (hai biến thể B0), `chain_registry.py` (web3.py, gửi giao dịch bằng RPC thô, snapshot sau deploy và quay về trước mỗi dòng). Ký EIP-712 ở `rec/oracles/signer.py`. Trong b0_separate, báo cáo O1 của điện lực (R1) được gửi tới CSDL của mọi issuer, và chuyển đăng ký (L3) là đóng ở CSDL cũ rồi mở cùng mã ở CSDL mới. `reconcile()` chạy một lần ở cuối dòng; exposure window được tính từ thời điểm MINT tới lần đối soát kế tiếp theo chu kỳ T_rec.
 
 ## 11. Bộ chạy mô phỏng (`rec/experiments/runner.py`, E1 ở `rec/experiments/e1.py`)
@@ -258,6 +260,8 @@ Cài đặt: `rec/registry/base.py`, `sqlite_registry.py` (hai biến thể B0),
 
 ## 12. Dashboard (`dashboard/app.py`)
 
+Dựng chain demo bằng `python -m rec.experiments.demo` (node Hardhat chạy nền, ghi `artifacts/demo/deployment.json`), rồi `streamlit run dashboard/app.py`. Demo gồm 20 ngày dòng hợp lệ (Proposed), D1, D4a, một lô khai tăng 45% đang chờ auditor, và một lần tạm khóa và rút của Code Manager.
+
 | Màn hình | Nội dung | Đọc từ |
 |---|---|---|
 | Tổng quan | Số lô theo ngày: MINT / REJECT / REVIEW / bị rút; tổng MWh đã phát hành, đã retire | Event `Issued`, `IssueRejected`, `LotReview`, `Withdrawn`, `Retired` |
@@ -275,4 +279,4 @@ Cài đặt: `rec/registry/base.py`, `sqlite_registry.py` (hai biến thể B0),
 | `contracts/test/code_manager.ts` | Tạm khóa chặn chuyển nhượng và retire; `withdraw` trả lại ngân sách và mở lại khóa; không rút được chứng chỉ đã retire; Code Manager không mint được |
 | `contracts/test/irec_*.ts` | Mỗi điều khoản trong `COMPLIANCE.md` (tên test mang mã điều khoản) |
 | `tests/test_encoding.py` | `data_root` giống nhau giữa Python và Solidity; slot thiếu mã hóa `-1`; ngày đổi giờ 92/100 slot |
-| `tests/test_parity.py` | Nhật ký quyết định của `chain` và `gate/sim.py` trùng nhau |
+| `tests/test_verifier.py`, `rec/experiments/parity.py` | Cờ của verifier trùng `decide` của E2; quyết định của chain trùng `gate/sim.py` trên mẫu ca E2a, kể cả sau khi auditor phân xử |

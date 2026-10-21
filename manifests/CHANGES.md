@@ -66,3 +66,10 @@ Không sửa file nào đã khóa ở `spec-v1` hay `testset-v1`. Các mục dư
     - cả bộ ghi inverter về 0 từ giữa buổi chiều trong khi công tơ vẫn đo (27/8/2021);
     - công tơ báo 0 hoặc thấp hơn tổng inverter khoảng 100 kW trong nhiều giờ (20/7/2023, ngày test).
   - Kiểu thứ hai là lỗi ở O1. Nó làm O1 thấp hơn thật, nên không gây REVIEW nhầm cho luật một phía, nhưng làm y của lô thấp đi.
+
+## Khi cài đặt giai đoạn 5 (21/10/2026): verifier, parity, E3, dashboard
+
+1. **`gate/sim.py` xét ngân sách trước công suất**, cùng thứ tự với contract (FLOW mục 4). Bản cũ xét công suất trước, nên một yêu cầu vi phạm cả hai nhận lý do khác với chain. Lượng MINT không đổi: chạy lại E2 bản `prereg` ra từng byte như cũ.
+2. **Ngữ nghĩa ngân sách khi lô đang REVIEW:** yêu cầu bị giữ chưa được MINT nên không chiếm ngân sách. Ở lượt đầu, yêu cầu thứ 7 của D4b (thiết bị giả) nhận `held` chứ không nhận `budget`; nếu auditor bác thì nó nhận `lot_rejected`. E2 không bị ảnh hưởng, vì E2 tính "bắt được" khi lô bị REVIEW hoặc có yêu cầu bị REJECT, và hai bên đều từ chối. Parity mô hình hóa đúng ngữ nghĩa này.
+3. **Độ trễ E3 đo trên 30 ngày đầu, không đo cả năm:** với block mỗi 2 giây, chạy 365 ngày tuần tự mất hàng giờ, trong khi độ trễ chỉ phụ thuộc nhịp block. Trước mỗi giao dịch chờ một khoảng ngẫu nhiên trong [0, 2) giây, vì gửi ngay sau receipt thì giao dịch nào cũng chờ trọn một chu kỳ. Gas và lineage đo trên cả 365 ngày, ở chế độ automine.
+4. **`COMPLIANCE.md`:** điền cột "Test" cho §8.5 (phần REVIEW) và §10.6 (dashboard). Nêu rõ kiểm tra ngẫu nhiên p mới được tính giải tích. Ghi lại `manifests/spec-v1.sha256`.

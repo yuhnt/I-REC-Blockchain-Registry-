@@ -112,6 +112,15 @@ Chạy E2 off-chain (khớp lớp B trên train, chọn ngưỡng trên val, đ�
 
 `prereg` là cách tính đúng `spec-v1`. `--select` chọn biến thể hậu kiểm của luật nhất quán, chỉ dùng train và val. `--variant day_only` chạy biến thể đã chọn. Xem `manifests/CHANGES.md`.
 
+Giai đoạn 5 (cần Hardhat; mỗi lệnh tự khởi động node):
+
+```bash
+.venv/Scripts/python -m rec.experiments.parity    # chain so với gate/sim.py trên mẫu ca E2a
+.venv/Scripts/python -m rec.experiments.e3        # gas, lineage completeness, độ trễ ở block 2 giây
+.venv/Scripts/python -m rec.experiments.demo      # dựng chain demo, node chạy tiếp; dừng bằng --stop
+.venv/Scripts/streamlit run dashboard/app.py
+```
+
 Ghi hoặc kiểm hash của mốc 1:
 
 ```bash
@@ -137,6 +146,7 @@ source/
 ├─ rec/            # schema, timeutil, config, manifest; data/, oracles/, generator/, physics/, checks/, model/, gate/, metrics/, experiments/
 ├─ tests/          # pytest
 ├─ manifests/      # hash của từng mốc, CHANGES.md
+├─ dashboard/      # Streamlit: tổng quan, tra chứng chỉ, hàng đợi REVIEW, nhật ký công khai, lineage
 ├─ docs/figures/   # script vẽ hình của proposal
 └─ contracts/      # Hardhat: DeviceRegistry, CertificateRegistry, DecisionGate; test/ theo điều khoản I-REC
 ```

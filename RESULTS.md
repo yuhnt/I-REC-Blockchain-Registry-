@@ -2,6 +2,8 @@
 
 - [E1 (RQ1, lớp A)](#e1-rq1-lớp-a)
 - [E2 (RQ2, lớp B)](#e2-rq2-lớp-b)
+- [Parity chain – mô phỏng](#parity-chain--mô-phỏng-off-chain)
+- [E3 (chi phí và truy vết)](#e3-chi-phí-và-truy-vết)
 
 # E2 (RQ2, lớp B)
 
@@ -179,3 +181,64 @@ Như H1 đã dự đoán: về khả năng **phát hiện trùng**, blockchain k
 | `transferRegistration` | 45 | 59.135 |
 
 Gas trên mỗi MWh và độ trễ thuộc E3 (block mỗi 2 giây), chưa chạy.
+
+# Parity chain – mô phỏng off-chain
+
+E2 chạy off-chain qua `gate/sim.py`. Test parity kiểm tra rằng contract cho cùng quyết định (FLOW mục 11):
+
+```bash
+.venv/Scripts/python -m rec.experiments.parity --per-scenario 50
+```
+
+- **Mẫu:** 50 ca mỗi kịch bản (honest, M1, M2, M3, D4b, D5), chọn ngẫu nhiên. Có 3 ca M3 không có yêu cầu nào vì O1 mất số liệu cả ngày, nên còn 297 ca. Mỗi ca chạy với 3 cấu hình B1, B2, Proposed (biến thể `prereg`, trần 4%), tổng 891 lô.
+- **Phía chain:** verifier ký verdict, issuer gửi bằng chứng của lô rồi `issue` từng yêu cầu. Lô REVIEW được auditor phân xử theo nhãn thật, rồi issuer gửi lại.
+- **Kết quả:** 0 lệch trên 5.484 yêu cầu. So sánh gồm cờ của verifier, kết cục ở lượt đầu (2.615 MINT, 765 giữ, 2.097 REJECT `capacity`, 7 REJECT `budget`), kết cục sau phân xử, và lượng Wh được MINT. Trong đó 281 lô bị REVIEW.
+- **Hai chỗ đã sửa để đạt parity:**
+  - `gate/sim.py` giờ xét ngân sách trước công suất, như contract. Lượng MINT của E2 không đổi.
+  - Lô đang REVIEW không giữ chỗ trong ngân sách (CHANGES, giai đoạn 5).
+- Cờ của verifier (đọc tham số từ file đã khóa) cũng trùng với `decide` của E2 trên 120 ca ngẫu nhiên (`tests/test_verifier.py`).
+
+# E3 (chi phí và truy vết)
+
+Dòng hợp lệ của seed 101: 365 ngày lịch đầu của tập test, tức 336 ngày hợp lệ, 6 thiết bị, có L3. Mỗi cấu hình chạy lại từ cùng trạng thái sau deploy. Lô REVIEW được auditor duyệt lúc 23:00 ngày d + 1 rồi gửi lại.
+
+```bash
+.venv/Scripts/python -m rec.experiments.e3
+```
+
+## 1. Gas
+
+| | B1 | B2 | Proposed |
+|---|---|---|---|
+| Giao dịch | 3.875 | 4.036 | 4.050 |
+| Lô bị REVIEW (nhầm, vì dòng hợp lệ) | 0 | 24 (7,1%) | 26 (7,7%) |
+| MWh phát hành | 1.325,8 | 1.325,8 | 1.325,8 |
+| Gas phát hành / MWh (bằng chứng + issue + phân xử) | 336.416 | 343.797 | 344.389 |
+| Gas mọi thao tác / MWh (thêm chuyển nhượng, retire) | 396.769 | 403.871 | 404.463 |
+
+Gas trung vị theo thao tác (Proposed): `submitLotEvidence` 139.588; `issue` 195.225 cho một thiết bị-ngày; `resolveReview` 29.676; `safeTransferFrom` 55.530; `retire` 45.852; `registerDevice` 119.825.
+
+- REVIEW làm tăng gas phát hành khoảng 2%: mỗi lô REVIEW tốn thêm một `resolveReview` và một lượt `issue` bị giữ.
+- Phần lớn chi phí là `issue` theo từng thiết bị-ngày. Gộp nhiều ngày vào một yêu cầu (kỳ dài hơn, vẫn ≤ 1 năm theo §8.2) sẽ giảm số giao dịch, nhưng mỗi ngày vẫn phải ghi khóa và ngân sách riêng.
+
+## 2. Độ trễ (block mỗi 2 giây)
+
+30 ngày đầu, 371 giao dịch gửi tuần tự. Mỗi giao dịch đến vào một thời điểm ngẫu nhiên trong chu kỳ block (CHANGES, giai đoạn 5, mục 3).
+
+| p50 | p95 | Lớn nhất |
+|---|---|---|
+| 0,99 giây | 1,91 giây | 2,01 giây |
+
+Độ trễ chỉ là thời gian chờ block kế tiếp, khoảng một nửa chu kỳ block. Chain cục bộ không có độ trễ mạng hay tranh chấp phí; trên mạng thật, con số này là cận dưới.
+
+## 3. Lineage completeness
+
+**100%** ở cả ba cấu hình (2.016 chứng chỉ mỗi cấu hình). Mỗi chứng chỉ dựng lại được chỉ từ event on-chain và kho file, theo chuỗi:
+
+1. `DeviceRegistered`;
+2. `LotEvidenced` với 4 `data_root`, cả 4 file trong `artifacts/store/` khớp hash;
+3. với lô REVIEW: `LotReview`, file reason code, `LotResolved`;
+4. `Issued`;
+5. mọi `TransferSingle` và `Retired`, khớp số dư.
+
+Dashboard dùng cùng hàm này; trên chain demo, kết quả cũng là 100%, kể cả chứng chỉ bị Code Manager rút một phần.

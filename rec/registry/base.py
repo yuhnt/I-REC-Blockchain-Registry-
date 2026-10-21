@@ -46,6 +46,7 @@ class LotEvidence:
     sun_slots: int
     ceiling_wh: int = 0
     model_hash: bytes = b"\0" * 32
+    reasons_hash: bytes = b"\0" * 32
 
     @property
     def o1(self) -> OracleReport:

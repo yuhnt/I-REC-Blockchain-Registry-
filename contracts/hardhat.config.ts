@@ -15,6 +15,10 @@ const config: HardhatUserConfig = {
       // Phí cơ sở bằng 0 để runner gửi giao dịch với gasPrice cố định, không phải hỏi phí ở mỗi giao dịch.
       initialBaseFeePerGas: 0,
       loggingEnabled: false,
+      // E3: đào block mỗi REC_INTERVAL_MS mili giây (2 giây) để đo độ trễ; mặc định automine.
+      mining: process.env.REC_INTERVAL_MS
+        ? { auto: false, interval: Number(process.env.REC_INTERVAL_MS) }
+        : { auto: true },
     },
   },
   // Bật bằng REPORT_GAS=true; dùng cho E3 (gas mỗi thao tác).

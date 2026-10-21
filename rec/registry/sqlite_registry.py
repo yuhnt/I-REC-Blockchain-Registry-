@@ -260,6 +260,7 @@ class SqliteRegistry(Registry):
     name = "b0_shared"
 
     def __init__(self, plant: Plant):
+        self.plant = plant
         self.ledger = Ledger(plant)
 
     def register_device(self, dev, t):

@@ -20,12 +20,12 @@ Bảng truy vết từ điều khoản của I-REC Code v1.11 (10/10/2022, file 
 | §8.2 | Kỳ nằm trong owner's declaration; hạn residual mix | — | — | Ngoài phạm vi |
 | §8.5 | Chỉ cấp cho sản lượng đã đo được (measured volume) tại công tơ, làm tròn tới kWh | O1 là số công tơ tại CP, lưu lần đầu; ngân sách CP | `flow.ts` IREC-8.5 (O1Conflict); ngân sách CP | **Đã test**; đơn vị Wh là đơn giản hóa (mục 3) |
 | §8.5 | Thứ bậc bằng chứng: (a) số đối soát thị trường; (b) công tơ chưa đối soát; (c) chứng từ giao nhận; (d) hệ đo được duyệt | Chế độ R1 = (a), R2 = (b)–(d) | E1 chạy R1, E2 chạy R2 | Đã thiết kế |
-| §8.5 | Bằng chứng phải được xác minh độc lập; Production Auditor xác nhận không có dấu hiệu sửa dữ liệu | REVIEW → auditor; kiểm tra ngẫu nhiên p% số lô | Luồng REVIEW; E2a theo p | Đã thiết kế |
+| §8.5 | Bằng chứng phải được xác minh độc lập; Production Auditor xác nhận không có dấu hiệu sửa dữ liệu | REVIEW → auditor; kiểm tra ngẫu nhiên p% số lô | `review.ts` IREC-8.5; parity (auditor phân xử 281 lô REVIEW trên chain); E2a theo p (giải tích) | **Đã test** phần REVIEW; kiểm tra ngẫu nhiên mới tính giải tích, chưa mô phỏng qua `gate/auditor.py` |
 | §8.7 | Issuer xem xét, có thể yêu cầu thêm thông tin, rồi duyệt hoặc bác kèm lý do | Event `LotReview`, `IssueRejected` kèm mã lý do; auditor phân xử bằng `resolveReview` (cách B, `FLOW.md` mục 5) | `review.ts` IREC-8.7 (giữ, duyệt, bác, chỉ auditor) | **Đã test** |
 | §9.3 | Chuyển quyền sở hữu chứng chỉ | ERC-1155 `transfer` | `lifecycle.ts` IREC-9.3 | **Đã test** |
 | §10 | Redemption (retire) không đảo ngược; chứng chỉ đã retire không chuyển được; chỉ một tuyên bố cho mỗi chứng chỉ | `retire` = burn + event | `lifecycle.ts` IREC-10 D6; E1 | **Đã test** |
 | §10 | Khi retire phải ghi người thụ hưởng, mục đích, nơi tiêu thụ, kỳ báo cáo; không được sửa sau đó | Trường của `Retire` và event `Retired`; trường rỗng bị revert | `lifecycle.ts` IREC-10 | **Đã test** |
-| §10.6 | Redemption Statement có QR và khóa xác minh | Dashboard dựng lại từ event; không có QR | — | Một phần |
+| §10.6 | Redemption Statement có QR và khóa xác minh | Dashboard (tab Tra chứng chỉ) dựng lại tuyên bố từ event `Retired`; không có QR | `dashboard/app.py`; lineage completeness 100% ở E3 | Một phần |
 | §11 | Chứng chỉ không bị xóa hay sửa, trừ khi sửa lỗi; Evident có thể **tạm khóa** chứng chỉ bị nghi và **rút** chứng chỉ phát hành sai (trước khi retire), rồi cho phát hành lại đúng | Vai trò Code Manager: tạm khóa, mở khóa, rút chứng chỉ chưa retire; mỗi thao tác phát event kèm lý do; không mint, không chạm chứng chỉ đã retire | `lifecycle.ts` IREC-11 (5 test) và test insider; E1 insider | **Đã test** (mục 2) |
 | §16.3 | Chuyển cơ sở sang issuer khác mà không phải đăng ký lại | Thao tác chuyển đăng ký trong `DeviceRegistry` | `registration.ts` IREC-16.3; E1 (L3) | **Đã test** |
 | §6, §8.3, §13–15 | KYC, hệ thống theo dõi khác, cấp phép quốc gia, đơn vị được công nhận | — | — | Ngoài phạm vi |

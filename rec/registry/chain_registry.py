@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
 import subprocess
 import time
@@ -47,9 +48,11 @@ def _artifact(name: str) -> dict:
 class HardhatNode:
     """Tiến trình `npx hardhat node` chạy nền; dừng khi `close()`."""
 
-    def __init__(self, port: int = 8545, initial_date: str = "2021-12-01T00:00:00Z"):
+    def __init__(self, port: int = 8545, initial_date: str = "2021-12-01T00:00:00Z", interval_ms: int | None = None):
         self.port = port
         env = dict(os.environ, REC_INITIAL_DATE=initial_date)
+        if interval_ms:
+            env["REC_INTERVAL_MS"] = str(interval_ms)
         log = open(config.resolve_path("artifacts") / f"hardhat_node_{port}.log", "w", encoding="utf-8")
         self.proc = subprocess.Popen(f"npx hardhat node --port {port}", cwd=contracts_dir(), env=env, stdout=log,
                                      stderr=subprocess.STDOUT, shell=True)
@@ -74,8 +77,11 @@ class HardhatNode:
 class ChainRegistry(Registry):
     name = "chain"
 
-    def __init__(self, plant: Plant, url: str):
+    def __init__(self, plant: Plant, url: str, interval_mining: bool = False):
         self.plant = plant
+        self.interval_mining = interval_mining  # E3: block mỗi 2 giây, không đặt timestamp theo đồng hồ mô phỏng
+        self.arrival_jitter_s = 0.0
+        self._rng = random.Random(0)
         self.w3 = Web3(Web3.HTTPProvider(url, request_kwargs={"timeout": 60}))
         accts = self.w3.eth.accounts
         self.addr = {role: Web3.to_checksum_address(accts[i]) for i, role in enumerate(ROLES)}
@@ -90,6 +96,7 @@ class ChainRegistry(Registry):
             ("O1Conflict", "O1Conflict(bytes32,uint64,uint64)"))}
         self._snapshot = self._rpc("evm_snapshot")
         self.gas_log: list[tuple[str, int]] = []
+        self.lat_log: list[tuple[str, float]] = []
 
     # ---------------------------------------------------------------- hạ tầng
 
@@ -105,7 +112,7 @@ class ChainRegistry(Registry):
             return self.w3.eth.contract(address=address, abi=art["abi"])
         factory = self.w3.eth.contract(abi=art["abi"], bytecode=art["bytecode"])
         tx = factory.constructor(*args).transact({"from": self.addr["deployer"], "gas": 10_000_000})
-        rcpt = self.w3.eth.get_transaction_receipt(tx)
+        rcpt = self.w3.eth.wait_for_transaction_receipt(tx, poll_latency=0.05)
         return self.w3.eth.contract(address=rcpt.contractAddress, abi=art["abi"])
 
     def _deploy(self) -> None:
@@ -117,7 +124,8 @@ class ChainRegistry(Registry):
             self.devices.address, self.certs.address, self.addr["auditor"], [b32(c) for c in cps],
             [self.addr[self.plant.holder_of[c]] for c in cps],
             [[self.addr[o] for o in ("O1", "O2", "O3", "O4")] for _ in cps], [self.addr["verifier"]]))
-        self.certs.functions.setGate(self.gate.address).transact({"from": self.addr["deployer"], "gas": GAS})
+        tx = self.certs.functions.setGate(self.gate.address).transact({"from": self.addr["deployer"], "gas": GAS})
+        self.w3.eth.wait_for_transaction_receipt(tx, poll_latency=0.05)
 
     def _error_selectors(self) -> dict[str, str]:
         out = {}
@@ -128,8 +136,12 @@ class ChainRegistry(Registry):
                     out["0x" + keccak(text=sig)[:4].hex()] = item["name"]
         return out
 
+    def checkpoint(self) -> None:
+        """Lấy trạng thái hiện tại (ví dụ sau khi đăng ký thiết bị) làm điểm quay về của `reset()`."""
+        self._snapshot = self._rpc("evm_snapshot")
+
     def reset(self) -> None:
-        """Quay về trạng thái ngay sau deploy (dùng trước mỗi dòng sự kiện)."""
+        """Quay về điểm đã chụp (mặc định ngay sau deploy; dùng trước mỗi dòng sự kiện)."""
         self._rpc("evm_revert", self._snapshot)
         self._snapshot = self._rpc("evm_snapshot")
         self._last_t = 0
@@ -147,13 +159,24 @@ class ChainRegistry(Registry):
 
         Trả (receipt, None), hoặc (None, tên lỗi) khi contract revert.
         """
-        self._at(t)
+        if not self.interval_mining:
+            self._at(t)
         tx = {"from": self.addr[role], "to": fn.address, "data": fn._encode_transaction_data(), "gas": hex(GAS),
               "gasPrice": "0x0"}
+        if self.arrival_jitter_s:  # E3: giao dịch đến vào thời điểm ngẫu nhiên so với nhịp đào block
+            time.sleep(self._rng.uniform(0, self.arrival_jitter_s))
+        t_send = time.perf_counter()
         resp = self.w3.provider.make_request("eth_sendTransaction", [tx])
         if "error" in resp:
             return None, self._decode_error(resp["error"])
-        rcpt = self.w3.provider.make_request("eth_getTransactionReceipt", [resp["result"]])["result"]
+        rcpt = None
+        while rcpt is None:  # automine: có ngay; đào theo khoảng thời gian: chờ block kế tiếp
+            rcpt = self.w3.provider.make_request("eth_getTransactionReceipt", [resp["result"]])["result"]
+            if rcpt is None:
+                time.sleep(0.02)
+        self.lat_log.append((op, time.perf_counter() - t_send))
+        if rcpt["status"] == "0x0":
+            return None, "Revert"
         gas = int(rcpt["gasUsed"], 16)
         self.gas_log.append((op, gas))
         return _Receipt(gas, rcpt["transactionHash"], rcpt["logs"]), None
@@ -198,7 +221,7 @@ class ChainRegistry(Registry):
                 for i, s in enumerate(structs)]
         verdict = {"lotKey": lot_key(ev.cp_id, ev.day), "flags": ev.flags, "ceilingWh": ev.ceiling_wh,
                    "sunSlots": ev.sun_slots, "reportsHash": reports_hash(structs), "modelHash": ev.model_hash,
-                   "reasonsHash": b"\0" * 32}
+                   "reasonsHash": ev.reasons_hash}
         vsig = self.signer.sign(self.keys["verifier"], "Verdict", verdict)
         to_tuple = lambda s, fields: tuple(s[n] for n in fields)
         rep = [to_tuple(s, ["oracle", "cpId", "day", "valueDay", "maxSlot", "slotsPresent", "dataRoot"]) for s in structs]
