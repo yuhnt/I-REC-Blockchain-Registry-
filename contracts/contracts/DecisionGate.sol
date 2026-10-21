@@ -47,8 +47,9 @@ contract DecisionGate is EIP712 {
         "OracleReport(uint8 oracle,bytes32 cpId,uint32 day,uint64 valueDay,uint64 maxSlot,uint16 slotsPresent,bytes32 dataRoot)");
     bytes32 public constant VERDICT_TYPEHASH = keccak256(
         "Verdict(bytes32 lotKey,uint8 flags,uint64 ceilingWh,uint16 sunSlots,bytes32 reportsHash,bytes32 modelHash,bytes32 reasonsHash)");
-    /// Ngày d kết thúc lúc 00:00 giờ chuẩn PST của ngày d + 1, tức (d + 1) · 86400 + 8 h theo UTC.
-    uint256 public constant DAY_END_OFFSET_S = 8 hours;
+    /// Ngày địa phương d được coi là đã kết thúc từ (d + 1) · 86400 + 7 h theo UTC, tức 00:00 PDT ngày d + 1.
+    /// Mùa đông (PST) mốc này sớm hơn nửa đêm thật 1 giờ; đơn giản hóa vì contract không biết giờ mùa hè.
+    uint256 public constant DAY_END_OFFSET_S = 7 hours;
     uint256 private constant SLOTS_PER_HOUR = 4;
 
     DeviceRegistry public immutable devices;

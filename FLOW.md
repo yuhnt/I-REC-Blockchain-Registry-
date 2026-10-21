@@ -109,12 +109,11 @@ Các bước:
    - lưu O1 của (CP, ngày) ở lần đầu; nếu đã có O1 khác thì phát `O1Conflict` và từ chối;
    - đặt trạng thái lô: `CLEAR` nếu `flags = 0`, ngược lại là `REVIEW`.
 5. **Yêu cầu phát hành (d+1, 01:00).** Issuer gọi `issue` cho từng thiết bị. Contract kiểm theo thứ tự:
-   1. người gọi là issuer hiện tại của thiết bị; thiết bị đang có đăng ký hiệu lực;
-   2. kỳ phát hành theo §8.2 (≤ 1 năm, trong một năm dương lịch, không trước ngày đăng ký hiệu lực, không sau ngày đóng đăng ký, không sau thời điểm nộp);
-   3. ① khóa: (thiết bị, ngày) chưa phát hành;
-   4. ② ngân sách: `issued[cp][day] + wh ≤ O1`;
-   5. ③ công suất: `wh ≤ công suất thiết bị × sunSlots × 0,25 h`, và `maxSlot` của O1 ≤ công suất CP × 0,25 h;
-   6. trạng thái lô: `CLEAR` hoặc `APPROVED` thì MINT; `REVIEW` thì giữ lại; `REJECTED` thì từ chối.
+   1. thiết bị đã đăng ký (`NOT_REGISTERED`);
+   2. kỳ phát hành theo §8.2 (`PERIOD`): trong một năm dương lịch (nên ≤ 1 năm), không trước ngày đăng ký hiệu lực, không từ ngày đóng đăng ký, và đã kết thúc trước thời điểm nộp. Contract coi ngày d kết thúc lúc 00:00 PDT (UTC − 7) ngày d + 1, vì không biết lịch giờ mùa hè (COMPLIANCE mục 3);
+   3. người gọi là issuer phụ trách thiết bị ở mọi ngày trong kỳ (`NOT_ISSUER`, §16.3);
+   4. với từng ngày: ① khóa (`KEY`); lô đã có bằng chứng (`ORACLE`); ② ngân sách `issued[cp][day] + wh ≤ O1` (`BUDGET`); ③ công suất (`CAPACITY`): `wh ≤ công suất thiết bị × sunSlots × 0,25 h`, `maxSlot` của O1 ≤ công suất CP × 0,25 h, và O1 ≤ công suất CP × sunSlots × 0,25 h; lô bị bác (`LOT_REJECTED`);
+   5. trạng thái lô: `CLEAR` hoặc `APPROVED` thì MINT; `REVIEW` thì giữ lại.
 6. **Kết cục.**
    - MINT: đánh dấu khóa, cộng ngân sách, mint cho địa chỉ nhà máy, phát `Issued`.
    - Vi phạm lớp A: **không revert**, mà phát `IssueRejected(reqId, lý do)` để lý do được lưu công khai. Chỉ revert khi người gọi không có quyền hoặc dữ liệu sai định dạng.
@@ -231,9 +230,11 @@ Mã lý do của `IssueRejected` khớp `rec.schema.RejectReason`: `KEY`, `BUDGE
 | `b0_shared` | Một file SQLite | Cùng kiểm tra như contract |
 | `chain` | Hardhat qua web3.py | Gọi đúng các hàm ở mục 9 |
 
-Chỉ hai backend SQLite có `operator_edit` (UPDATE / DELETE / phát hành lại, không để dấu vết) để chạy kịch bản insider. Trên chain không có thao tác tương đương; thứ gần nhất là `withdraw` của Code Manager, và nó luôn để lại event.
+Chỉ hai backend SQLite có `operator_edit` (UPDATE / DELETE / phát hành lại, không để dấu vết) để chạy kịch bản insider. Trên chain không có thao tác tương đương; thứ gần nhất là `withdraw` của Code Manager, và nó luôn để lại event. Khi chạy insider trên chain, runner cho issuer gọi `withdraw`; lời gọi revert `NotCodeManager`.
 
-## 11. Bộ chạy mô phỏng (`rec/experiments/runner.py`)
+Cài đặt: `rec/registry/base.py`, `sqlite_registry.py` (hai biến thể B0), `chain_registry.py` (web3.py, gửi giao dịch bằng RPC thô, snapshot sau deploy và quay về trước mỗi dòng). Ký EIP-712 ở `rec/oracles/signer.py`. Trong b0_separate, báo cáo O1 của điện lực (R1) được gửi tới CSDL của mọi issuer, và chuyển đăng ký (L3) là đóng ở CSDL cũ rồi mở cùng mã ở CSDL mới. `reconcile()` chạy một lần ở cuối dòng; exposure window được tính từ thời điểm MINT tới lần đối soát kế tiếp theo chu kỳ T_rec.
+
+## 11. Bộ chạy mô phỏng (`rec/experiments/runner.py`, E1 ở `rec/experiments/e1.py`)
 
 **Đầu vào:** `events.jsonl` của generator (sắp theo `t`), tên backend, cấu hình lớp B (B1, B2, Proposed, A1, A2), chế độ (R1 / R2), tỉ lệ kiểm tra ngẫu nhiên p.
 

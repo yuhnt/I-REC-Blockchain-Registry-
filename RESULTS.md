@@ -1,4 +1,9 @@
-# Kết quả E2 (RQ2, lớp B)
+# Kết quả thí nghiệm
+
+- [E1 (RQ1, lớp A)](#e1-rq1-lớp-a)
+- [E2 (RQ2, lớp B)](#e2-rq2-lớp-b)
+
+# E2 (RQ2, lớp B)
 
 Tập test `testset-v1` gồm 638 lô test trung thực (514 ngày quang, 80 mây vừa, 44 nhiều mây), chế độ R2. Lớp B chạy off-chain qua `rec/gate/sim.py`. Mọi ngưỡng chỉ chọn trên val (321 lô).
 
@@ -101,3 +106,76 @@ Bảng đầy đủ theo từng tham số: `artifacts/results/<biến thể>/e2a
 - **Nguyên nhân gốc** là đuôi của tỷ số theo ngày, đến từ các ngày `outage`. Trong những ngày đó, công tơ vẫn đo được điện trong khi inverter báo 0, tức là inverter ngừng ghi số liệu chứ không ngừng phát. Chi tiết ở CHANGES.md.
 - Phát hiện này gắn với việc kiểm tay 50 ngày inverter ngừng phát, vẫn còn treo từ giai đoạn 2. Nếu nhóm đổi định nghĩa `outage` hoặc loại các ngày này thì phải sinh `testset-v2`, và mọi kết quả mới đều mang nhãn hậu kiểm.
 - Luật nhất quán bị giới hạn bởi chất lượng dữ liệu inverter, chứ không bởi thiết kế một phía. Trên ngày không `outage` của val, p99 của tỷ số O1/O2 chỉ là 4,3%.
+
+# E1 (RQ1, lớp A)
+
+Chế độ R1: O1 do điện lực ký nên kẻ gian không sửa được. Mỗi kịch bản D1–D6 và insider chèn vào 60 ngày test ngẫu nhiên × 5 seed (101–105), tức 300 ca. Mỗi ca chạy chồng lên dòng hợp lệ 638 ngày (6 thiết bị, có L3). Dòng Production Group (L4) chạy riêng. Cùng một dòng sự kiện được chạy qua ba backend:
+
+```bash
+.venv/Scripts/python -m rec.experiments.e1 --backends b0_separate,b0_shared --run-only
+.venv/Scripts/python -m rec.experiments.e1 --backends chain --seeds 101 --run-only --port 8545   # mỗi seed một cổng
+.venv/Scripts/python -m rec.experiments.e1 --metrics-only
+```
+
+Kết quả ghi ở `artifacts/results/e1/` (`summary.csv`, `cases.csv`, `false_reject.csv`, `gas_s*.csv`, nhật ký quyết định trong `decisions/`).
+
+## 1. Điểm chặn và tỉ lệ lọt
+
+| Kịch bản | b0_separate (mỗi issuer một CSDL) | b0_shared (CSDL dùng chung) | chain |
+|---|---|---|---|
+| D1 nộp lại | 0/300 lọt (khóa) | 0/300 (khóa) | 0/300 (khóa) |
+| D2 kỳ 7/30 ngày | 0/300 (khóa) | 0/300 (khóa) | 0/300 (khóa) |
+| D3 đăng ký lại mã ở issuer khác | **178/300 lọt**, tỉ lệ lọt 58% | 0/300 (bước đăng ký) | 0/300 (bước đăng ký) |
+| D4a thiết bị mới cùng CP, chép dữ liệu | **299/300 lọt**, 100% | 0/300 (ngân sách CP) | 0/300 (ngân sách CP) |
+| D4b thiết bị mới gồm tỷ lệ f các khối | **261/300 lọt**, 74% | 0/300 (ngân sách CP) | 0/300 (ngân sách CP) |
+| D5 thay ngày Y bằng dữ liệu ngày X | **128/300 lọt**, 9% | 0/300 (ngân sách CP) | 0/300 (ngân sách CP) |
+| D6 retire lại, chuyển sau retire | 0/300 (vòng đời) | 0/300 (vòng đời) | 0/300 (vòng đời) |
+| Insider sửa / xóa / phát hành lại | **300/300 thành công, không dấu vết: fail** | **300/300, không dấu vết: fail** | 0/300 (không có hàm quản trị): **pass** |
+
+- Tỉ lệ lọt = Wh vượt đã MINT / Wh vượt đã nộp, tính theo lô (SPEC mục 4.2; CHANGES, giai đoạn 3, mục 3).
+- **DCR của b0_separate:** D3 0,90%, D4a 1,56%, D4b 3,28%, D5 0,40%, insider 1,06%. Tỉ lệ tấn công trong dòng là 1,5–4,4% Wh.
+- D3 trên b0_separate có 122 ca bị REJECT `not_registered`. Đây là do generator đặt thời điểm đăng ký lại (CHANGES, giai đoạn 3, mục 4), nên 58% là cận dưới.
+- D5 trên b0_separate chỉ lọt khi một phần thiết bị đã chuyển sang issuerB (L3). Khi đó mỗi CSDL chỉ thấy phần ngân sách của mình.
+
+## 2. Exposure window của b0_separate
+
+Số ngày từ lúc MINT bản trùng tới lần đối soát chéo kế tiếp. Không ca nào bị cắt ở cuối dòng.
+
+| Kịch bản | Trung vị, T_rec = 7 | Lớn nhất, T_rec = 7 | Trung vị, T_rec = 30 | Lớn nhất, T_rec = 30 |
+|---|---|---|---|---|
+| D3 | 3,5 ngày | 6,5 | 15,5 | 29,5 |
+| D4a | 3,4 | 6,5 | 14,5 | 29,5 |
+| D4b | 2,5 | 6,5 | 15,4 | 29,5 |
+| D5 | 4,0 | 6,5 | 18,5 | 29,5 |
+
+Đối soát gộp CSDL rồi chạy lại khóa và ngân sách CP. Nó tìm ra mọi bản trùng của D3–D5, nhưng chỉ sau khi chứng chỉ đã được phát hành và có thể đã được chuyển đi. Sổ cái dùng chung (b0_shared, chain) chặn ngay lúc phát hành: exposure bằng 0. Đối soát **không** tìm ra insider, vì bản ghi đã bị sửa ngay trong CSDL gốc.
+
+## 3. REJECT nhầm (mẫu âm của lớp A)
+
+| Mẫu âm | Số yêu cầu (5 seed, mọi dòng) | Bị REJECT hoặc giữ |
+|---|---|---|
+| L1: 6 khối hợp lệ sau cùng CP | 155.874 | 0 ở cả ba backend |
+| L3: B6 chuyển đăng ký sang issuerB giữa kỳ (§16.3) | 14.184 | 0 |
+| L4: Production Group thay 6 thiết bị (§7.7) | 3.190 | 0 |
+
+## 4. Parity chain – CSDL dùng chung
+
+Nhật ký quyết định của chain và b0_shared được so từng dòng trên 50 dòng sự kiện (339.238 thao tác):
+
+- Ngoài kịch bản insider, kết cục (MINT, REJECT, revert) và lượng MINT trùng nhau 100%.
+- 368 dòng lệch đều thuộc insider, và lệch là đúng thiết kế. Trên CSDL có 300 lần sửa thành công; 68 lần chuyển nhượng hoặc retire về sau thất bại vì bản ghi đã bị xóa. Trên chain, cả 300 lần đều revert.
+
+Như H1 đã dự đoán: về khả năng **phát hiện trùng**, blockchain không hơn một CSDL dùng chung. Khác biệt duy nhất là insider: trên chain, không ai sửa được bản ghi đã phát hành một cách lặng lẽ.
+
+## 5. Gas (Hardhat, tối ưu 200 lần chạy, viaIR)
+
+| Thao tác | Số lần | Gas trung vị |
+|---|---|---|
+| `submitLotEvidence` (4 chữ ký báo cáo + 1 chữ ký verdict) | 31.900 | 138.772 |
+| `issue` (một thiết bị-ngày) | 176.545 | 195.225 |
+| `registerDevice` | 875 | 119.885 |
+| `safeTransferFrom` | 85.851 | 55.530 |
+| `retire` | 42.628 | 45.852 |
+| `transferRegistration` | 45 | 59.135 |
+
+Gas trên mỗi MWh và độ trễ thuộc E3 (block mỗi 2 giây), chưa chạy.

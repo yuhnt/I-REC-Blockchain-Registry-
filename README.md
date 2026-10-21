@@ -90,6 +90,20 @@ Sinh tập test (mốc 2; ghi `artifacts/testset/`, chỉ ghi khi bộ kiểm tr
 .venv/Scripts/python -m rec.generator.cli
 ```
 
+Test contract (37 test, tên mang mã điều khoản I-REC theo `COMPLIANCE.md`):
+
+```bash
+cd contracts && npx hardhat test
+```
+
+Chạy E1 (cùng dòng sự kiện qua b0_separate, b0_shared và chain; backend chain tự khởi động `npx hardhat node`). Chạy đủ trên chain mất khoảng 20 phút mỗi seed, nên có thể chạy song song mỗi seed một cổng rồi tính chỉ số:
+
+```bash
+.venv/Scripts/python -m rec.experiments.e1 --backends b0_separate,b0_shared --run-only
+.venv/Scripts/python -m rec.experiments.e1 --backends chain --seeds 101 --run-only --port 8545
+.venv/Scripts/python -m rec.experiments.e1 --metrics-only
+```
+
 Chạy E2 off-chain (khớp lớp B trên train, chọn ngưỡng trên val, đánh giá trên tập test đã khóa). Kết quả ghi vào `artifacts/results/<biến thể>/`, tóm tắt ở [RESULTS.md](RESULTS.md):
 
 ```bash
@@ -124,5 +138,5 @@ source/
 ├─ tests/          # pytest
 ├─ manifests/      # hash của từng mốc, CHANGES.md
 ├─ docs/figures/   # script vẽ hình của proposal
-└─ contracts/      # Hardhat; contracts/test/ToolchainCheck.sol là contract tạm của giai đoạn 0
+└─ contracts/      # Hardhat: DeviceRegistry, CertificateRegistry, DecisionGate; test/ theo điều khoản I-REC
 ```

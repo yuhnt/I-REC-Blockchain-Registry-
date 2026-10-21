@@ -228,7 +228,7 @@ Streamlit + web3.py đọc event từ Hardhat:
 | 0. Dựng repo | `git init`; `pyproject.toml`; Hardhat trong `contracts/`; `.gitignore`; README cài đặt; `rec/schema.py`, `rec/timeutil.py` | **Xong** (commit `b2a985e`) |
 | 1. Đặc tả (mốc 1) | `split.yaml`, `scenarios.yaml`, `features.yaml`, `thresholds.yaml`; `SPEC.md`; `COMPLIANCE.md`; `rec/config.py` kiểm tính nhất quán; `configs/days.csv`, `days_dropped.csv` từ `rec.data.days` | **Tag `spec-v1`** + `manifests/spec-v1.sha256` |
 | 2. Dữ liệu + generator (mốc 2) | `rec/data`, `rec/physics`; tính lại sai lệch vệ tinh và độ rộng trần theo loại ngày trên 2018–2021 (ngày địa phương); kiểm tay 50 ngày inverter ngừng phát; `rec/generator` + bộ kiểm tra; sinh tập test | Bộ kiểm tra generator qua; **tag `testset-v1`** + sha256 tập test |
-| 3. Lớp A | 3 contract + test Hardhat (mang mã điều khoản I-REC); `sqlite_registry` (2 biến thể); `chain_registry`; E1 | D1–D6 bị chặn đúng điểm chặn trên SQLite dùng chung và chain; L1, L3, L4 không bị REJECT; bảng E1 ra được |
+| 3. Lớp A | 3 contract + test Hardhat (mang mã điều khoản I-REC); `sqlite_registry` (2 biến thể); `chain_registry`; E1 | D1–D6 bị chặn đúng điểm chặn trên SQLite dùng chung và chain; L1, L3, L4 không bị REJECT; bảng E1 ra được. **Đã làm:** 3 contract, 37 test Hardhat mang mã điều khoản, `rec/registry/` (3 backend), `rec/experiments/runner.py`, `e1.py`; kết quả ở [RESULTS.md](RESULTS.md) |
 | 4. Lớp B | `oracles` + signer; `checks`; `model` (train, calibrate); `gate/sim.py`, `gate/auditor.py`; `metrics`; E2a, E2b chạy off-chain | Bảng E2a, E2b có khoảng tin cậy, ở mọi mức tỉ lệ REVIEW nhầm; test chặn rò đặc trưng O1–O3 qua. **Đã chạy off-chain** (commit `b76c094` là bản đăng ký trước; biến thể hậu kiểm `day_only`); kết quả ở [RESULTS.md](RESULTS.md). Còn `gate/auditor.py` |
 | 5. Tích hợp | Verifier ký `Verdict`; nối vào `DecisionGate`; kho file theo `data_root`; test parity; E3; dashboard; ablation | Parity 100%; bảng E3; dashboard hiện đủ lineage |
 | 6. Kết quả | `run_all` sinh lại toàn bộ bảng và hình từ tag; `manifests/results.sha256` | Chạy lại trên máy khác ra cùng số |
@@ -272,7 +272,7 @@ pip install -e .[dev]
 python -m rec.data.preprocess --paths configs/paths.yaml
 python -m rec.generator.cli --scenarios configs/scenarios.yaml --split test
 cd contracts && npx hardhat test
-python -m rec.experiments.e1
+python -m rec.experiments.e1                      # 3 backend × 5 seed; --run-only/--metrics-only để chạy chain song song
 python -m rec.experiments.e2 --variant prereg     # E2a + E2b, đúng spec-v1
 python -m rec.experiments.e2 --select             # chọn biến thể hậu kiểm, chỉ trên val
 python -m rec.experiments.e2 --variant day_only   # biến thể hậu kiểm đã chọn

@@ -12,6 +12,9 @@ const config: HardhatUserConfig = {
       // Dòng sự kiện của E1 bắt đầu từ 2022; chain phải khởi đầu trước đó để đặt được timestamp theo đồng hồ mô phỏng.
       initialDate: process.env.REC_INITIAL_DATE,
       allowBlocksWithSameTimestamp: true,
+      // Phí cơ sở bằng 0 để runner gửi giao dịch với gasPrice cố định, không phải hỏi phí ở mỗi giao dịch.
+      initialBaseFeePerGas: 0,
+      loggingEnabled: false,
     },
   },
   // Bật bằng REPORT_GAS=true; dùng cho E3 (gas mỗi thao tác).
