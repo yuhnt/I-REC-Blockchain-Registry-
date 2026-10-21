@@ -165,6 +165,7 @@ sequenceDiagram
 ```
 
 - Phần đã retire trước khi bị phát hiện thì **không rút được**, và tính là lọt (SPEC mục 8.2).
+- Mô phỏng ở `rec/gate/auditor.py`: mỗi lô có một số ngẫu nhiên u cố định, được kiểm khi u < p (tập lô kiểm ở 1% nằm trong tập ở 5%); thời điểm retire theo `honest_stream`. E2a ghi `oir_p<n>` (mô phỏng) cạnh `oir_p<n>_analytic` = (1 − p) · OIR; E2b ghi `lmax_p<n>`.
 - Rút toàn bộ một thiết bị-ngày thì khóa (thiết bị, ngày) được mở lại; issuer có thể phát hành lại lượng đúng qua luồng chính.
 
 ## 7. Chuyển nhượng và retire

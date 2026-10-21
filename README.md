@@ -121,6 +121,12 @@ Giai đoạn 5 (cần Hardhat; mỗi lệnh tự khởi động node):
 .venv/Scripts/streamlit run dashboard/app.py
 ```
 
+Sinh lại toàn bộ kết quả (dữ liệu → generator → E2 → E1 → parity → E3 → hình, khoảng 1 giờ), rồi so với manifest kết quả đã commit:
+
+```bash
+.venv/Scripts/python -m rec.experiments.run_all --check
+```
+
 Ghi hoặc kiểm hash của mốc 1:
 
 ```bash

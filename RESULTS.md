@@ -109,6 +109,33 @@ Bảng đầy đủ theo từng tham số: `artifacts/results/<biến thể>/e2a
 - Phát hiện này gắn với việc kiểm tay 50 ngày inverter ngừng phát, vẫn còn treo từ giai đoạn 2. Nếu nhóm đổi định nghĩa `outage` hoặc loại các ngày này thì phải sinh `testset-v2`, và mọi kết quả mới đều mang nhãn hậu kiểm.
 - Luật nhất quán bị giới hạn bởi chất lượng dữ liệu inverter, chứ không bởi thiết kế một phía. Trên ngày không `outage` của val, p99 của tỷ số O1/O2 chỉ là 4,3%.
 
+## 7. Kiểm tra ngẫu nhiên p (SPEC mục 8.2, đăng ký trước, trần 4%)
+
+Production Auditor bốc thăm p% số lô đã MINT, lúc 12:00 ngày d + 2 (`rec/gate/auditor.py`). Lô gian lận bị bốc trúng thì Code Manager rút phần chứng chỉ chưa retire.
+
+| | p = 0 | p = 1% | p = 5% |
+|---|---|---|---|
+| LMAX k = 3, B1 | 15,42% | 15,31% | 14,63% |
+| LMAX k = 3, B2 | 12,33% | 12,23% | 11,64% |
+| LMAX k = 3, Proposed | 12,29% | 12,19% | 11,59% |
+| LMAX k = 1, Proposed | 10,02% | 9,92% | 9,42% |
+
+OIR của kẻ gian ngây thơ cũng giảm khoảng p lần, ví dụ M2 với Proposed: 2,01% → 1,90% ở p = 5%. Mô phỏng gần trùng công thức (1 − p) · LMAX, vì theo vòng đời của dòng hợp lệ, chứng chỉ gần như chưa kịp retire trước lần kiểm.
+
+**Trả lời câu hỏi của SPEC mục 8.2:**
+- Kiểm tra 5% số lô chỉ bù khoảng 5% phần lọt.
+- Lớp B (B1 → B2) bù 20% ở k = 3 (15,4% → 12,3%) và khoảng 30–35% ở k = 1.
+- Vậy với mức kiểm tra khả thi, lớp B vẫn đáng làm. Hai cơ chế cộng dồn được.
+- Đề tài chưa mô hình hóa hình phạt khi bị bắt, nên chưa tính được tác dụng răn đe của việc kiểm tra.
+
+## 8. Hình
+
+`python -m rec.experiments.figures` ghi vào `artifacts/results/figures/`:
+- `lmax_by_k.png`: LMAX theo k;
+- `lmax_by_day_type.png`: LMAX ở k = 3 theo loại ngày;
+- `lmax_by_review_rate.png`: LMAX theo tỉ lệ REVIEW nhầm của trần;
+- `lmax_random_check.png`: LMAX theo p.
+
 # E1 (RQ1, lớp A)
 
 Chế độ R1: O1 do điện lực ký nên kẻ gian không sửa được. Mỗi kịch bản D1–D6 và insider chèn vào 60 ngày test ngẫu nhiên × 5 seed (101–105), tức 300 ca. Mỗi ca chạy chồng lên dòng hợp lệ 638 ngày (6 thiết bị, có L3). Dòng Production Group (L4) chạy riêng. Cùng một dòng sự kiện được chạy qua ba backend:
@@ -242,3 +269,20 @@ Gas trung vị theo thao tác (Proposed): `submitLotEvidence` 139.588; `issue` 1
 5. mọi `TransferSingle` và `Retired`, khớp số dư.
 
 Dashboard dùng cùng hàm này; trên chain demo, kết quả cũng là 100%, kể cả chứng chỉ bị Code Manager rút một phần.
+
+# Tái lập (giai đoạn 6)
+
+`python -m rec.experiments.run_all` chạy lại toàn bộ trong 64 phút trên máy của nhóm:
+- dữ liệu gốc → generator;
+- E2 (đăng ký trước, chọn biến thể, hậu kiểm);
+- E1 (SQLite; chain 5 node song song, 30 phút);
+- parity, E3 (17 phút), hình.
+
+Kết quả:
+
+- Dataset, danh sách ngày và tập test sinh lại từ dữ liệu gốc **khớp hash** của `spec-v1` và `testset-v1`.
+- So với lần chạy trước, 174/177 file kết quả trùng từng byte, gồm 150 nhật ký quyết định E1 của ba backend và mọi bảng E2. Ba file còn lại khác vì lý do đã biết, không phải do kết quả dao động:
+  - `e3/lineage.csv` có thêm cột `withdrawn_wh`; nội dung các cột cũ trùng;
+  - bản parity cũ đã bị test nhỏ (`REC_CHAIN_TESTS=1`) ghi đè. Chạy lại parity đủ mẫu lần nữa thì trùng từng byte với bản của `run_all`.
+- Hash của các file tất định nằm ở `manifests/results-v1.sha256`. Trên máy khác, chạy `python -m rec.experiments.run_all --check`; nó báo `khop` nếu ra cùng số.
+- Không nằm trong manifest: độ trễ E3 (đo theo đồng hồ thật), nhật ký chạy, `models.pkl`.

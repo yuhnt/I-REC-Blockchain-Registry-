@@ -230,8 +230,8 @@ Streamlit + web3.py đọc event từ Hardhat:
 | 2. Dữ liệu + generator (mốc 2) | `rec/data`, `rec/physics`; tính lại sai lệch vệ tinh và độ rộng trần theo loại ngày trên 2018–2021 (ngày địa phương); kiểm tay 50 ngày inverter ngừng phát (bộ hình: `python -m rec.data.manual_check`, phiếu ở [docs/kiem_tay/](docs/kiem_tay/README.md); **chờ nhóm điền**); `rec/generator` + bộ kiểm tra; sinh tập test | Bộ kiểm tra generator qua; **tag `testset-v1`** + sha256 tập test |
 | 3. Lớp A | 3 contract + test Hardhat (mang mã điều khoản I-REC); `sqlite_registry` (2 biến thể); `chain_registry`; E1 | D1–D6 bị chặn đúng điểm chặn trên SQLite dùng chung và chain; L1, L3, L4 không bị REJECT; bảng E1 ra được. **Đã làm:** 3 contract, 37 test Hardhat mang mã điều khoản, `rec/registry/` (3 backend), `rec/experiments/runner.py`, `e1.py`; kết quả ở [RESULTS.md](RESULTS.md) |
 | 4. Lớp B | `oracles` + signer; `checks`; `model` (train, calibrate); `gate/sim.py`, `gate/auditor.py`; `metrics`; E2a, E2b chạy off-chain | Bảng E2a, E2b có khoảng tin cậy, ở mọi mức tỉ lệ REVIEW nhầm; test chặn rò đặc trưng O1–O3 qua. **Đã chạy off-chain** (commit `b76c094` là bản đăng ký trước; biến thể hậu kiểm `day_only`); kết quả ở [RESULTS.md](RESULTS.md). Còn `gate/auditor.py` |
-| 5. Tích hợp | Verifier ký `Verdict`; nối vào `DecisionGate`; kho file theo `data_root`; test parity; E3; dashboard; ablation | Parity 100%; bảng E3; dashboard hiện đủ lineage. **Đã làm:** `gate/verifier.py`, `oracles/store.py`, `experiments/parity.py` (0 lệch trên 5.484 yêu cầu), `experiments/e3.py`, `experiments/demo.py`, `dashboard/app.py`; ablation đã có trong E2. Còn `gate/auditor.py` cho kiểm tra ngẫu nhiên p (E2a hiện tính OIR × (1 − p) giải tích) |
-| 6. Kết quả | `run_all` sinh lại toàn bộ bảng và hình từ tag; `manifests/results.sha256` | Chạy lại trên máy khác ra cùng số |
+| 5. Tích hợp | Verifier ký `Verdict`; nối vào `DecisionGate`; kho file theo `data_root`; test parity; E3; dashboard; ablation | Parity 100%; bảng E3; dashboard hiện đủ lineage. **Đã làm:** `gate/verifier.py`, `oracles/store.py`, `experiments/parity.py` (0 lệch trên 5.484 yêu cầu), `experiments/e3.py`, `experiments/demo.py`, `dashboard/app.py`; ablation đã có trong E2. `gate/auditor.py` mô phỏng kiểm tra ngẫu nhiên p (E2a, E2b) |
+| 6. Kết quả | `run_all` sinh lại toàn bộ bảng và hình từ tag; `manifests/results-v1.sha256` | Chạy lại trên máy khác ra cùng số. **Đã làm:** `rec/experiments/run_all.py`, `figures.py`, mốc `results-v1` trong `rec/manifest.py` |
 
 **Phụ thuộc:**
 
@@ -280,5 +280,5 @@ python -m rec.experiments.parity                 # mẫu 50 ca mỗi kịch bả
 python -m rec.experiments.e3                     # gas, lineage (365 ngày), độ trễ (30 ngày, block 2 giây)
 python -m rec.experiments.demo                   # chain demo cho dashboard
 streamlit run dashboard/app.py
-python -m rec.experiments.run_all
+python -m rec.experiments.run_all                 # toàn bộ, khoảng 1 giờ; --check so với manifests/results-v1.sha256
 ```

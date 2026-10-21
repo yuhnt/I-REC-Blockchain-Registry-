@@ -73,3 +73,13 @@ Không sửa file nào đã khóa ở `spec-v1` hay `testset-v1`. Các mục dư
 2. **Ngữ nghĩa ngân sách khi lô đang REVIEW:** yêu cầu bị giữ chưa được MINT nên không chiếm ngân sách. Ở lượt đầu, yêu cầu thứ 7 của D4b (thiết bị giả) nhận `held` chứ không nhận `budget`; nếu auditor bác thì nó nhận `lot_rejected`. E2 không bị ảnh hưởng, vì E2 tính "bắt được" khi lô bị REVIEW hoặc có yêu cầu bị REJECT, và hai bên đều từ chối. Parity mô hình hóa đúng ngữ nghĩa này.
 3. **Độ trễ E3 đo trên 30 ngày đầu, không đo cả năm:** với block mỗi 2 giây, chạy 365 ngày tuần tự mất hàng giờ, trong khi độ trễ chỉ phụ thuộc nhịp block. Trước mỗi giao dịch chờ một khoảng ngẫu nhiên trong [0, 2) giây, vì gửi ngay sau receipt thì giao dịch nào cũng chờ trọn một chu kỳ. Gas và lineage đo trên cả 365 ngày, ở chế độ automine.
 4. **`COMPLIANCE.md`:** điền cột "Test" cho §8.5 (phần REVIEW) và §10.6 (dashboard). Nêu rõ kiểm tra ngẫu nhiên p mới được tính giải tích. Ghi lại `manifests/spec-v1.sha256`.
+
+## Giai đoạn 6 (21/10/2026): kiểm tra ngẫu nhiên, `run_all`, manifest kết quả
+
+1. **Kiểm tra ngẫu nhiên được mô phỏng** qua `rec/gate/auditor.py` (SPEC mục 8.2). Trước đó E2a chỉ ghi (1 − p) · OIR.
+   - `e2a.csv`: `oir_p<n>` là kết quả mô phỏng; công thức giải tích (1 − p) · OIR chuyển sang cột `oir_p<n>_analytic`.
+   - `e2b.csv`: thêm cột `lmax_p<n>`.
+   - Các cột khác và quy tắc kết luận không đổi.
+   - Theo `honest_stream`, chứng chỉ gần như không kịp retire trước lần kiểm lúc 12:00 ngày d + 2. Vì vậy kết quả mô phỏng gần trùng giải tích: LMAX ở k = 3 của Proposed giảm từ 12,29% (p = 0) xuống 12,19% (p = 1%) và 11,59% (p = 5%).
+2. **E3 tách `latency_summary.json` khỏi `summary.json`.** Độ trễ và thời gian chạy đo theo đồng hồ thật, nên không đưa vào manifest kết quả.
+3. **Mốc `results-v1`** (`rec/manifest.py`, `manifests/results-v1.sha256`): hash các bảng và hình tất định của E1, E2, parity, E3, cùng `layer_b.json` của từng biến thể. Ghi bởi `python -m rec.experiments.run_all`; `--check` so lần chạy lại với manifest đã commit.

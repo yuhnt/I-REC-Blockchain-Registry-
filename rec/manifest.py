@@ -1,6 +1,6 @@
 """Hash SHA-256 của các file thuộc một mốc protocol (SPEC.md mục 9).
 
-Chạy:  python -m rec.manifest spec-v1          # ghi manifests/spec-v1.sha256
+Chạy:  python -m rec.manifest spec-v1          # ghi manifests/spec-v1.sha256 (tương tự testset-v1, results-v1)
        python -m rec.manifest spec-v1 --check  # so file hiện tại với manifest đã ghi
 Nội dung được chuẩn hóa CRLF → LF trước khi hash, để kết quả giống nhau trên Windows và macOS/Linux.
 """
@@ -35,6 +35,25 @@ MILESTONES: dict[str, list[str]] = {
         "artifacts/testset/summary.json",
         "artifacts/testset/e1/*",
         "artifacts/testset/e2/*",
+    ],
+    # Giai đoạn 6: kết quả tất định (chạy lại phải ra cùng byte). Không gồm độ trễ của E3 (đo theo đồng hồ thật),
+    # nhật ký chạy và mô hình dạng pickle; tham số lớp B đã khóa có trong layer_b.json.
+    "results-v1": [
+        "artifacts/model/*/layer_b.json",
+        "artifacts/results/selection.json",
+        "artifacts/results/prereg/*",
+        "artifacts/results/day_only/*",
+        "artifacts/results/e1/summary.csv",
+        "artifacts/results/e1/cases.csv",
+        "artifacts/results/e1/false_reject.csv",
+        "artifacts/results/e1/gas_s*.csv",
+        "artifacts/results/e1/decisions/*/*.csv",
+        "artifacts/results/parity/*",
+        "artifacts/results/e3/gas.csv",
+        "artifacts/results/e3/gas_summary.csv",
+        "artifacts/results/e3/lineage.csv",
+        "artifacts/results/e3/summary.json",
+        "artifacts/results/figures/*.png",
     ],
 }
 

@@ -15,7 +15,8 @@ Lineage completeness = % chứng chỉ dựng lại được đủ chuỗi chỉ
 → mọi lần chuyển nhượng, retire và rút của Code Manager khớp số dư.
 
 Chạy: python -m rec.experiments.e3 [--days 365] [--latency-days 30]
-Ghi artifacts/results/e3/: gas.csv, gas_summary.csv, latency.csv, lineage.csv, summary.json.
+Ghi artifacts/results/e3/: gas.csv, gas_summary.csv, lineage.csv, summary.json (tất định);
+latency.csv, latency_summary.json (đo theo đồng hồ thật, không vào manifest kết quả).
 """
 from __future__ import annotations
 
@@ -166,9 +167,8 @@ def main(argv: list[str]) -> int:
                 "gas_total": int(sum(g for _, g in chain.gas_log)), "gas_issuance": int(issuance_gas),
                 "gas_per_mwh_issuance": issuance_gas / (minted_wh / 1e6),
                 "gas_per_mwh_all": sum(g for _, g in chain.gas_log) / (minted_wh / 1e6),
-                "certificates": len(lin), "lineage_complete": float(lin["complete"].mean()),
-                "seconds": round(time.time() - t0, 1)}
-            print(c, json.dumps(summary["configs"][c], ensure_ascii=False), flush=True)
+                "certificates": len(lin), "lineage_complete": float(lin["complete"].mean())}
+            print(c, json.dumps(summary["configs"][c], ensure_ascii=False), f"({time.time() - t0:.0f} s)", flush=True)
     finally:
         node.close()
 
@@ -190,14 +190,16 @@ def main(argv: list[str]) -> int:
     gs.to_csv(out / "gas_summary.csv", index=False)
     lat.to_csv(out / "latency.csv", index=False)
     pd.concat(lin_frames).to_csv(out / "lineage.csv", index=False)
-    summary["latency"] = {"transactions": len(lat), "block_interval_s": 2,
+    latency = {"transactions": len(lat), "block_interval_s": 2,
                           "p50_s": float(np.quantile(lat["seconds"], 0.5)),
                           "p95_s": float(np.quantile(lat["seconds"], 0.95)),
                           "max_s": float(lat["seconds"].max()),
                           "by_op_p50": lat.groupby("op")["seconds"].median().round(3).to_dict()}
+    # summary.json tất định (vào manifests/results.sha256); độ trễ đo theo đồng hồ thật nên ghi riêng.
     (out / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+    (out / "latency_summary.json").write_text(json.dumps(latency, indent=2, ensure_ascii=False), encoding="utf-8")
     print(gs.to_string(index=False))
-    print(json.dumps(summary["latency"], ensure_ascii=False))
+    print(json.dumps(latency, ensure_ascii=False))
     return 0
 
 

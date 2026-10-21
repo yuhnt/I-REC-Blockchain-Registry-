@@ -19,9 +19,10 @@ import pandas as pd
 from rec import config
 from rec.checks.consistency import STATS, VARIANTS, coverage, fit, stats
 from rec.data import pvdaq
+from rec.gate.auditor import Auditor
 from rec.gate.sim import CHECKED_ORACLES, PROFILES, device_caps, layer_a, o1_report
 from rec.generator.cases_e2 import apply_case
-from rec.generator.common import INVERTER_MAX_W, load_days
+from rec.generator.common import INVERTER_MAX_W, allocate, load_days
 from rec.metrics.e2 import bootstrap_diff, decide, lmax, lmax_scale, summarize
 from rec.model import ai
 from rec.model.calibrate import ceiling_tau, consistency_thresholds
@@ -42,6 +43,19 @@ def _lot_row(series: dict, dd, temp: np.ndarray, cons, window) -> dict:
            "o3_total": float(np.nansum(series[OracleId.O3])), "y_wh": dd.y_wh}
     row.update(stats(series, dd.sun, temp, cons, window))
     return row
+
+
+def _random_check(feat: pd.DataFrame, dec: pd.DataFrame, auditor: Auditor, ps: list[float]) -> pd.DataFrame:
+    """OIR sau kiểm tra ngẫu nhiên (SPEC mục 8.2), mô phỏng từng lô qua `gate/auditor.py`."""
+    att = feat["scenario"] != "honest"
+    excess = np.maximum(0, dec["minted_wh"].to_numpy() - feat["y_wh"].to_numpy())
+    out = feat.loc[att, ["scenario", "params", "y_wh"]].copy()
+    for p in ps:
+        out[f"left_{p}"] = [auditor.after_check(cid, float(ex), list(wh), p) for cid, ex, wh in
+                            zip(feat.loc[att, "case_id"], excess[att.to_numpy()], feat.loc[att, "minted_req_wh"])]
+    g = out.groupby(["scenario", "params"])
+    res = pd.DataFrame({f"oir_p{int(p * 100)}": g[f"left_{p}"].sum() / g["y_wh"].sum() for p in ps}).reset_index()
+    return res
 
 
 def _fit_and_calibrate(window) -> dict:
@@ -150,6 +164,7 @@ def main(argv: list[str]) -> int:
         lot = _lot_row(applied.series, dd, temps[dd.day], cons, window)
         reasons = layer_a(applied.requests, lot["o1_day"], lot["o1_max"], lot["sun_slots"], caps, cp_cap_w)
         lot["minted_a_wh"] = sum(wh for (_, _, wh), r in zip(applied.requests, reasons) if r is None)
+        lot["minted_req_wh"] = tuple(wh for (_, _, wh), r in zip(applied.requests, reasons) if r is None)
         lot["a_reject"] = any(r is not None for r in reasons)
         rows.append(lot)
     feat = pd.concat([cases.reset_index(drop=True), pd.DataFrame(rows)], axis=1)
@@ -157,6 +172,7 @@ def main(argv: list[str]) -> int:
     case_base = {b: base_day[b].reindex(case_days).to_numpy() for b in ("pv", "ai", "ai_linear")}
     case_base["ai_o3"] = ai.predict(models["ai_o3"], ai.features_a1(days_df.loc[case_days],
                                                                     feat["o3_total"].to_numpy()))
+    auditor = Auditor()
     tables, honest_tables = [], []
     for q in (thr["ceiling"]["false_review_main"], min(sweep)):
         for name, prof in PROFILES.items():
@@ -166,8 +182,9 @@ def main(argv: list[str]) -> int:
             for t in (tbl, honest):
                 t.insert(0, "q_ceiling", q)
                 t.insert(0, "config", name)
+            tbl = tbl.merge(_random_check(feat, dec, auditor, thr["random_check"]["p"]), on=["scenario", "params"])
             for p in thr["random_check"]["p"]:
-                tbl[f"oir_p{int(p * 100)}"] = (1 - p) * tbl["oir"]
+                tbl[f"oir_p{int(p * 100)}_analytic"] = (1 - p) * tbl["oir"]
             tables.append(tbl)
             honest_tables.append(honest)
     e2a = pd.concat(tables, ignore_index=True)
@@ -181,6 +198,8 @@ def main(argv: list[str]) -> int:
     yt = test["y_wh"].to_numpy(float)
     o3t = test["o3_total"].to_numpy(float)
     a1_fn = lambda g: ai.predict(models["ai_o3"], ai.features_a1(days_df.loc[split["test"]], g * o3t))
+    test_wh = [list(allocate(int(data[d].y_wh), {b: data[d].block_wh.get(b, 0.0) for b in devices}).values())
+               for d in split["test"]]
     lrows, scales = [], {}
     for q in sweep:
         for name, prof in PROFILES.items():
@@ -190,6 +209,10 @@ def main(argv: list[str]) -> int:
                                base_fn=a1_fn if name == "A1" else None)
                 scales[(name, q, k)] = s
                 rec = {"config": name, "q_ceiling": q, "k": k, "lmax": lmax(yt, s)}
+                for p in thr["random_check"]["p"]:  # kiểm tra ngẫu nhiên trên lô đã MINT của kẻ gian thích nghi
+                    s_p = np.array([1 + (si - 1) * auditor.after_check(f"lmax:{d}", 1.0, wh, p) if si > 1 else si
+                                    for si, d, wh in zip(s, split["test"], test_wh)])
+                    rec[f"lmax_p{int(p * 100)}"] = lmax(yt, s_p)
                 for t in ("clear", "partly", "cloudy"):
                     m = day_type == t
                     rec[f"lmax_{t}"] = lmax(yt[m], s[m])
