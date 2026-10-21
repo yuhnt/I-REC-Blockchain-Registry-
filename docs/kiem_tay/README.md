@@ -1,24 +1,13 @@
-# Kiểm tay các ngày "inverter ngừng phát"
+# Hình minh họa các ngày "inverter báo 0"
 
-Việc còn treo từ giai đoạn 2 (SPEC mục 5, `scenarios.yaml` → `inverter_outage.manual_check_days: 50`). E2 cho thấy một phần ngày `outage` là inverter **ngừng ghi số liệu** chứ không ngừng phát (manifests/CHANGES.md), nên phải kiểm trước khi dùng các ngày này làm mẫu âm L5 và ngày đích D5.
+Định nghĩa `outage` (SPEC mục 5) bắt được 1.032 trên 1.985 ngày: ban ngày, một inverter báo dưới 0,5 kW ít nhất 2 giờ trong khi trung vị 24 inverter trên 5 kW. Nhóm này gồm hai hiện tượng thật:
 
-## Cách làm
+- **ngừng phát thật** (đa số): pin hoặc inverter tắt, công tơ giảm theo, khung giữa của hình nằm quanh 0. Ví dụ 22/9/2021, 28/7/2022;
+- **ngừng ghi số liệu** (thiểu số): inverter báo 0 nhưng công tơ vẫn đo được điện, khung giữa bám theo đường đứt. Ví dụ 27/8/2021.
 
-1. Dựng bộ hình (khoảng 1 phút): `.venv/Scripts/python -m rec.data.manual_check`. Mở `artifacts/manual_check/index.html`: một trang gồm 50 hình kèm hướng dẫn.
-2. Hai người kiểm **độc lập**, không xem cột của nhau: người 1 điền `nguoi_kiem_1`, `ket_luan_1`; người 2 điền `nguoi_kiem_2`, `ket_luan_2` trong `phieu_kiem_tay.csv` (mở được bằng Excel). Giá trị kết luận:
-   - `ngung_that`: ở vùng tô, công tơ giảm theo tổng inverter; khung giữa nằm quanh 0;
-   - `ngung_ghi`: inverter báo 0 nhưng công tơ không giảm; khung giữa bám theo đường đứt;
-   - `loi_cong_to`: công tơ thấp hơn hẳn tổng inverter, hoặc báo 0 khi inverter vẫn phát;
-   - `khong_ro`: không phân biệt được.
-3. Ngày hai người khác ý thì bàn lại, điền `ket_luan_chot` và lý do ở `ghi_chu` (ngày cùng ý thì chép kết luận chung). Commit phiếu đã điền.
-4. Cột `goi_y_gap_ratio` là gợi ý của máy. Nó sai ở những ngày có nhiều lỗi chồng nhau (ví dụ 27/8/2021: cả bộ ghi inverter về 0 sau 15:00, gợi ý chỉ ra 0,16). Không chép theo cột này.
+Bước kiểm tay 50 ngày **đã bỏ**: dữ liệu được giữ nguyên, và kết quả kiểm tay không làm thay đổi dữ liệu hay chỉ số nào (`manifests/CHANGES.md`, mục "Quyết định về các ngày inverter báo 0"). Bộ hình được giữ để minh họa trong báo cáo.
 
-## Mẫu
-
-- 30 ngày `ngau_nhien` (seed 2026) trong 1.032 ngày `outage` của cả train, val và test: dùng để ước lượng tỉ lệ ngừng ghi.
-- 20 ngày `duoi_cao`: công tơ cao hơn η × tổng inverter nhiều nhất trong số còn lại: dùng để thấy rõ hiện tượng. Nhóm này không dùng để ước lượng tỉ lệ.
-
-## Sau khi kiểm
-
-- Nếu tỉ lệ `ngung_ghi` trong 30 ngày ngẫu nhiên đáng kể: sửa định nghĩa `outage` (ví dụ đòi công tơ giảm theo), sinh lại dataset và tập test (`testset-v2`), ghi vào `manifests/CHANGES.md`. Mọi kết quả chạy trên `testset-v2` mang nhãn **hậu kiểm**, và vẫn báo cáo kết quả của `testset-v1`.
-- Nếu gần như toàn bộ là `ngung_that`: giữ định nghĩa; ghi kết quả kiểm vào CHANGES. Đuôi của luật nhất quán vẫn phải được giải thích bằng các ngày ngừng ghi đã thấy ở nhóm `duoi_cao`.
+Dựng lại (khoảng 1 phút): `.venv/Scripts/python -m rec.data.manual_check`, rồi mở `artifacts/manual_check/index.html`. Mẫu gồm 30 ngày ngẫu nhiên và 20 ngày có công tơ cao hơn η × tổng inverter nhiều nhất. Mỗi hình có ba khung:
+1. công tơ so với η × tổng inverter;
+2. phần chênh lệch so với phần inverter ngừng lẽ ra phát;
+3. 24 inverter, tô màu inverter bị đánh dấu.

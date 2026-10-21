@@ -83,3 +83,26 @@ Không sửa file nào đã khóa ở `spec-v1` hay `testset-v1`. Các mục dư
    - Theo `honest_stream`, chứng chỉ gần như không kịp retire trước lần kiểm lúc 12:00 ngày d + 2. Vì vậy kết quả mô phỏng gần trùng giải tích: LMAX ở k = 3 của Proposed giảm từ 12,29% (p = 0) xuống 12,19% (p = 1%) và 11,59% (p = 5%).
 2. **E3 tách `latency_summary.json` khỏi `summary.json`.** Độ trễ và thời gian chạy đo theo đồng hồ thật, nên không đưa vào manifest kết quả.
 3. **Mốc `results-v1`** (`rec/manifest.py`, `manifests/results-v1.sha256`): hash các bảng và hình tất định của E1, E2, parity, E3, cùng `layer_b.json` của từng biến thể. Ghi bởi `python -m rec.experiments.run_all`; `--check` so lần chạy lại với manifest đã commit.
+
+## Quyết định về các ngày "inverter báo 0" (21/10/2026)
+
+Định nghĩa `outage` (SPEC mục 5) bắt được 1.032 trên 1.985 ngày. Các ngày này gồm hai hiện tượng thật, đều có trong dữ liệu đo:
+- **ngừng phát thật:** pin hoặc inverter bị tắt, công tơ giảm theo. Đây là trường hợp phổ biến, ví dụ 28/7/2022: năm inverter gần như không phát khoảng 10 giờ, công tơ / (η · tổng inverter) − 1 = −0,8%;
+- **ngừng ghi số liệu:** inverter báo 0 nhưng công tơ vẫn đo được điện. Đây là nhóm thiểu số, ví dụ 27/8/2021.
+
+**Quyết định:**
+1. **Giữ nguyên dữ liệu và `testset-v1`; không sinh `testset-v2`.**
+   - Cả hai hiện tượng đều là ngày trung thực mà registry thật sẽ gặp.
+   - Loại hay sửa chúng sau khi đã thấy kết quả test sẽ làm luật nhất quán trông chặt hơn thực tế. Đây là cùng lý do SPEC mục 2 đã nêu khi loại 73 ngày.
+   - Các mục trước có ghi "nếu sửa định nghĩa thì sinh `testset-v2`"; quyết định này thay cho các mục đó.
+2. **Báo cáo gọi nhóm này là "inverter báo 0 (ngừng phát hoặc ngừng ghi số liệu)",** gồm mẫu âm L5 và ngày đích "trời quang có inverter ngừng phát" của D5. Tên trong code và config không đổi (`outage`, `sunny_fault`). Báo cáo nêu giới hạn:
+   - luật nhất quán bị chặn bởi chất lượng ghi số liệu của inverter, nên dung sai thực tế ở mức 1% REVIEW nhầm là khoảng 27–37%, không phải 1,5%;
+   - ngừng phát thật không gây REVIEW nhầm, vì luật chỉ kiểm một phía.
+3. **Bỏ bước kiểm tay 50 ngày** (SPEC mục 5, `inverter_outage.manual_check_days`; hai file này đã khóa nên không sửa). Sau quyết định 1, kết quả kiểm tay không còn làm thay đổi dữ liệu hay chỉ số nào. Bằng chứng cho quyết định 2 đã có sẵn từ máy:
+   - 22 trong 26 ngày trung thực có O1/(η·O2) − 1 > 10% (train, val) là ngày `outage`;
+   - trên val, p99 của tỷ số này là 4,3% ở ngày không `outage` và 23,5% ở ngày `outage`.
+   `rec/data/manual_check.py` được giữ để vẽ hình minh họa cho báo cáo; phiếu kiểm tay được bỏ.
+4. **Hướng phát triển** (chưa làm): khi so O1 với O2, chỉ cộng các inverter đang báo số rồi nhân theo tỷ lệ 24 / số inverter đang báo.
+   - Ngày ngừng ghi: hết REVIEW nhầm.
+   - Ngày ngừng phát thật: kẻ gian ở k = 1 khai thêm được phần của inverter đã tắt.
+   - Nếu làm thì là một biến thể hậu kiểm, theo đúng quy trình của `day_only`.

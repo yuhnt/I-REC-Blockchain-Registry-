@@ -93,7 +93,7 @@ Mục tiêu đặt trên val là khoảng 5% (1% + 4%). Proposed vượt mục t
 ## 5. Kẻ gian ngây thơ (E2a, đăng ký trước)
 
 - **D4b, M2:** recall của B2 và Proposed gần bằng nhau. Ở k = 3 và mức tăng lớn, Proposed thấp hơn B2 2–3 điểm.
-- **D5, ngày quang có inverter ngừng phát, k = 3:** Proposed bắt 27–29%, B2 16–19%.
+- **D5, ngày quang có inverter báo 0, k = 3:** Proposed bắt 27–29%, B2 16–19%.
 - **D5, ngày nhiều mây, k = 3:** B2 bắt 97–99%, Proposed 91–93%.
 - **M1** (tăng đột biến ngắn): B1 bắt 33–92%, B2 và Proposed thêm 3–15 điểm.
 - **M3** (oracle lỗi, không phải gian lận): thiếu báo cáo luôn bị REVIEW. Khi giá trị bị kẹt hoặc lệch giờ, tỉ lệ REVIEW là 5–98%, tùy oracle và độ dài lỗi.
@@ -105,9 +105,12 @@ Bảng đầy đủ theo từng tham số: `artifacts/results/<biến thể>/e2a
 
 - Ở đăng ký trước, luật nhất quán **gần như vô tác dụng**. Ngưỡng bằng giá trị lớn nhất trên val, nên LMAX ở k = 1 (10,0%) chỉ thấp hơn k = 3 (12,3%) một chút.
 - Hậu kiểm bỏ thống kê theo slot. Kết quả chỉ là đổi mức cân bằng: REVIEW nhầm giảm, recall với M1, M3, D5 cũng giảm. Luật không chặt hơn đáng kể.
-- **Nguyên nhân gốc** là đuôi của tỷ số theo ngày, đến từ các ngày `outage`. Trong những ngày đó, công tơ vẫn đo được điện trong khi inverter báo 0, tức là inverter ngừng ghi số liệu chứ không ngừng phát. Chi tiết ở CHANGES.md.
-- Phát hiện này gắn với việc kiểm tay 50 ngày inverter ngừng phát, vẫn còn treo từ giai đoạn 2. Nếu nhóm đổi định nghĩa `outage` hoặc loại các ngày này thì phải sinh `testset-v2`, và mọi kết quả mới đều mang nhãn hậu kiểm.
-- Luật nhất quán bị giới hạn bởi chất lượng dữ liệu inverter, chứ không bởi thiết kế một phía. Trên ngày không `outage` của val, p99 của tỷ số O1/O2 chỉ là 4,3%.
+- **Nguyên nhân gốc** là đuôi của tỷ số theo ngày, đến từ các ngày "inverter báo 0" (`outage`). Nhóm này gồm hai hiện tượng thật:
+  - **ngừng phát thật**, chiếm đa số: pin hoặc inverter tắt, công tơ giảm theo, tỷ số không đổi, không gây REVIEW nhầm. Ví dụ 28/7/2022: năm inverter gần như không phát khoảng 10 giờ, công tơ / (η · tổng inverter) − 1 = −0,8%;
+  - **ngừng ghi số liệu**, chiếm thiểu số: inverter báo 0 nhưng công tơ vẫn đo được điện. Chính nhóm này tạo ra đuôi. Ví dụ 27/8/2021.
+- **Giữ nguyên dữ liệu** (CHANGES, "Quyết định về các ngày inverter báo 0"). Cả hai hiện tượng đều là ngày trung thực mà registry thật sẽ gặp; loại chúng đi sẽ làm luật trông chặt hơn thực tế.
+- **Giới hạn cần nêu trong báo cáo:** luật nhất quán bị chặn bởi chất lượng ghi số liệu của inverter, chứ không bởi thiết kế một phía. Trên ngày không `outage` của val, p99 của tỷ số O1/O2 chỉ là 4,3%, nhưng tính cả các ngày ngừng ghi thì dung sai ở mức 1% REVIEW nhầm là khoảng 27–37%.
+- Hướng phát triển: hiệu chỉnh O2 theo số inverter đang báo số (CHANGES, cùng mục).
 
 ## 7. Kiểm tra ngẫu nhiên p (SPEC mục 8.2, đăng ký trước, trần 4%)
 

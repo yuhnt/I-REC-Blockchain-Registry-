@@ -1,7 +1,8 @@
-"""Bộ hình kiểm tay các ngày "inverter ngừng phát" (SPEC mục 5; scenarios.yaml `inverter_outage.manual_check_days`).
+"""Bộ hình minh họa các ngày "inverter báo 0" (định nghĩa `outage`, SPEC mục 5).
 
-Câu hỏi cần trả lời cho mỗi ngày: inverter bị đánh dấu **ngừng phát thật** (công tơ giảm theo), hay chỉ
-**ngừng ghi số liệu** (inverter báo 0 nhưng công tơ vẫn đo được phần điện đó)?
+Mỗi hình cho thấy inverter bị đánh dấu **ngừng phát thật** (công tơ giảm theo), hay chỉ **ngừng ghi số liệu**
+(inverter báo 0 nhưng công tơ vẫn đo được phần điện đó). Bước kiểm tay 50 ngày của SPEC đã bỏ; dữ liệu giữ nguyên
+(manifests/CHANGES.md, "Quyết định về các ngày inverter báo 0"). Bộ hình dùng để minh họa trong báo cáo.
 
 Mẫu 50 ngày, lấy trong mọi ngày `outage` của train, val và test:
 - 30 ngày bốc ngẫu nhiên (seed cố định): đại diện, dùng để ước lượng tỉ lệ ngừng ghi;
@@ -13,7 +14,6 @@ kiểm quyết định bằng hình.
 
 Chạy: python -m rec.data.manual_check
 Ghi artifacts/manual_check/: <ngày>.png, index.html (xem cả bộ trong trình duyệt), sample.csv.
-Phiếu để nhóm điền: docs/kiem_tay/phieu_kiem_tay.csv (commit kết quả đã điền).
 """
 from __future__ import annotations
 
@@ -164,11 +164,6 @@ def main() -> int:
     sample = pd.DataFrame(rows)
     sample.to_csv(out / "sample.csv", index=False)
 
-    form = config.ROOT / "docs" / "kiem_tay" / "phieu_kiem_tay.csv"
-    form.parent.mkdir(parents=True, exist_ok=True)
-    if not form.exists():  # không ghi đè phiếu nhóm đã điền
-        sample.assign(nguoi_kiem_1="", ket_luan_1="", nguoi_kiem_2="", ket_luan_2="", ket_luan_chot="",
-                      ghi_chu="").to_csv(form, index=False, encoding="utf-8-sig")
     _index_html(sample, out, eta, len(cand), len(days))
     print(f"η = {eta:.4f} | ngày outage: {len(cand)} / {len(days)} | mẫu: {len(sample)} → {out}")
     print(sample.groupby("nhom_mau")["goi_y_gap_ratio"].describe().round(2).to_string())
@@ -183,7 +178,7 @@ def _index_html(sample: pd.DataFrame, out, eta: float, n_outage: int, n_days: in
                      f'{r.loai_ngay} · {html.escape(r.inverter_ngung)} · gợi ý {r.goi_y_gap_ratio:.2f}</small></h2>'
                      f'<img alt="Ngày {r.ngay}" src="data:image/png;base64,{img}"></section>')
     page = f"""<!doctype html><html lang="vi"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><title>Kiểm tay inverter ngừng phát</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Ngày inverter báo 0</title>
 <style>
 :root {{ --bg:#fcfcfb; --fg:#0b0b0b; --muted:#52514e; --line:#e4e3df; }}
 @media (prefers-color-scheme: dark) {{ :root {{ --bg:#1a1a19; --fg:#f0efec; --muted:#c3c2b7; --line:#3a3a37; }} }}
@@ -193,21 +188,19 @@ h1 {{ font-size:22px; }} h2 {{ font-size:16px; margin:28px 0 6px; }} small {{ co
 img {{ width:100%; height:auto; border:1px solid var(--line); border-radius:6px; background:#fff; }}
 li {{ margin:4px 0; }}
 </style></head><body>
-<h1>Kiểm tay các ngày "inverter ngừng phát"</h1>
+<h1>Các ngày "inverter báo 0": ngừng phát hay ngừng ghi?</h1>
 <p>{n_outage} trên {n_days} ngày hợp lệ bị đánh dấu <code>outage</code>: ban ngày, một inverter báo dưới 0,5 kW trong
 ít nhất 2 giờ, trong khi trung vị 24 inverter trên 5 kW. Mẫu gồm 50 ngày: 30 ngày bốc ngẫu nhiên (ước lượng tỉ lệ) và
 20 ngày có công tơ cao hơn tổng inverter nhiều nhất (xem rõ hiện tượng). η = {eta:.4f}.</p>
-<p><b>Cần quyết định mỗi ngày:</b></p>
+<p><b>Cách đọc hình:</b></p>
 <ul>
 <li><b>ngung_that</b>: ở vùng tô, đường công tơ (xanh) <i>giảm theo</i> đường tổng inverter (cam); khung giữa nằm quanh 0.</li>
 <li><b>ngung_ghi</b>: inverter báo 0 nhưng công tơ <i>không giảm</i>; khung giữa bám theo đường đứt (phần lẽ ra phát).</li>
 <li><b>loi_cong_to</b>: công tơ thấp hơn hẳn tổng inverter, hoặc báo 0 khi inverter vẫn phát (lỗi nằm ở O1, không ở inverter).</li>
 <li><b>khong_ro</b>: không phân biệt được (mây, clipping, nhiều inverter mất số liệu từng lúc…).</li>
 </ul>
-<p>Ghi vào <code>docs/kiem_tay/phieu_kiem_tay.csv</code>. Hai người kiểm độc lập: người 1 điền <code>nguoi_kiem_1</code>,
-<code>ket_luan_1</code>; người 2 điền <code>nguoi_kiem_2</code>, <code>ket_luan_2</code>, không xem cột của người kia.
-Sau đó bàn những ngày khác ý, điền <code>ket_luan_chot</code> và lý do ở <code>ghi_chu</code>.
-Cột <code>goi_y_gap_ratio</code> chỉ là gợi ý của máy, đừng chép theo.</p>
+<p>Dữ liệu được giữ nguyên ở mọi kết quả; trang này chỉ để minh họa. Cột gợi ý của máy
+(<code>gap_ratio</code>) sai ở những ngày có nhiều lỗi chồng nhau.</p>
 {''.join(cards)}
 </body></html>"""
     (out / "index.html").write_text(page, encoding="utf-8")
