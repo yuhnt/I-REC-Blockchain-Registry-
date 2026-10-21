@@ -58,7 +58,7 @@ export async function registerAll(ctx: Ctx, effectiveDay = DAY - 30) {
   }
 }
 
-export function reportsFor(day: number, o1Wh: bigint, maxSlot = o1Wh / 20n): Report[] {
+export function reportsFor(day: number, o1Wh: bigint, maxSlot = o1Wh / 40n): Report[] {
   const root = (i: number) => ethers.keccak256(ethers.toUtf8Bytes(`${day}-${i}`));
   const base = { cpId: CP, day, slotsPresent: SUN_SLOTS };
   return [

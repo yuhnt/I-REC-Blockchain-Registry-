@@ -68,7 +68,7 @@ describe("DecisionGate – REVIEW và chữ ký", () => {
     const e = await evidence(ctx, reportsFor(DAY, 600_000n));
     const tampered = e.reports.map((r, i) => (i === 0 ? { ...r, valueDay: 900_000n } : r));
     await expect(ctx.gate.connect(ctx.issuerA).submitLotEvidence(tampered, e.sigs, e.verdict, e.vsig))
-      .to.be.revertedWithCustomError(ctx.gate, "BadVerdict");
+      .to.be.revertedWithCustomError(ctx.gate, "BadSignature").withArgs(0);
   });
 
   it("Verdict ký bởi khóa không phải verifier → revert; verdict không khớp 4 báo cáo → revert BadVerdict", async () => {
