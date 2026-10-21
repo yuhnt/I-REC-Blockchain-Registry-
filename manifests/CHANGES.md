@@ -56,3 +56,13 @@ Không sửa file nào đã khóa ở `spec-v1` hay `testset-v1`. Các mục dư
 5. **b0_separate đối soát một lần ở cuối dòng.** Thao tác đối soát chỉ phát hiện, không sửa, nên kết quả không phụ thuộc thời điểm chạy. Exposure window ở T_rec = 7 và 30 ngày được tính từ thời điểm MINT tới lần đối soát kế tiếp, đếm từ đầu dòng. Bị cắt ở cuối dòng nếu bản trùng không bao giờ bị phát hiện.
 6. **Insider trên chain:** contract không có hàm sửa, xóa hay phát hành lại. Runner cho issuer thử thao tác gần nhất là `withdraw` của Code Manager; lời gọi revert `NotCodeManager`. Ngoài ra, test Hardhat kiểm ABI của cả ba contract không có hàm nào mang tên kiểu update, edit, delete, reissue, adminMint hay upgrade.
 7. **`COMPLIANCE.md` (file của `spec-v1`) được cập nhật:** điền cột "Test" và trạng thái **Đã test** cho các điều khoản có test Hardhat đang qua, như chính file này đã dự kiến ("cột Test được điền ở giai đoạn 3–5"); thêm một dòng ở mục 3 về mốc kết thúc ngày (mục 1 ở trên). Không đổi yêu cầu hay thiết kế nào. Đã ghi lại `manifests/spec-v1.sha256`.
+
+## Công cụ kiểm tay ngày "inverter ngừng phát" (21/10/2026)
+
+- `rec/data/manual_check.py` dựng 50 hình (30 ngày ngẫu nhiên, 20 ngày đuôi cao) và phiếu `docs/kiem_tay/phieu_kiem_tay.csv`. Cách kiểm và việc phải làm sau khi kiểm ở `docs/kiem_tay/README.md`. Định nghĩa `outage` và tập test chưa đổi.
+- **Nhận xét khi dựng hình (chưa phải kết quả kiểm):**
+  - Chỉ số gợi ý có trung vị 0,04 ở nhóm ngẫu nhiên (đa số giống ngừng thật) và 0,71 ở nhóm đuôi cao (đa số giống ngừng ghi).
+  - Có thêm hai kiểu lỗi ngoài inverter:
+    - cả bộ ghi inverter về 0 từ giữa buổi chiều trong khi công tơ vẫn đo (27/8/2021);
+    - công tơ báo 0 hoặc thấp hơn tổng inverter khoảng 100 kW trong nhiều giờ (20/7/2023, ngày test).
+  - Kiểu thứ hai là lỗi ở O1. Nó làm O1 thấp hơn thật, nên không gây REVIEW nhầm cho luật một phía, nhưng làm y của lô thấp đi.
