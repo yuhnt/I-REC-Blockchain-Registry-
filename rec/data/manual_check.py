@@ -167,8 +167,8 @@ def main() -> int:
     form = config.ROOT / "docs" / "kiem_tay" / "phieu_kiem_tay.csv"
     form.parent.mkdir(parents=True, exist_ok=True)
     if not form.exists():  # không ghi đè phiếu nhóm đã điền
-        sample.assign(ket_luan="", nguoi_kiem_1="", nguoi_kiem_2="", ghi_chu="").to_csv(form, index=False,
-                                                                                         encoding="utf-8-sig")
+        sample.assign(nguoi_kiem_1="", ket_luan_1="", nguoi_kiem_2="", ket_luan_2="", ket_luan_chot="",
+                      ghi_chu="").to_csv(form, index=False, encoding="utf-8-sig")
     _index_html(sample, out, eta, len(cand), len(days))
     print(f"η = {eta:.4f} | ngày outage: {len(cand)} / {len(days)} | mẫu: {len(sample)} → {out}")
     print(sample.groupby("nhom_mau")["goi_y_gap_ratio"].describe().round(2).to_string())
@@ -204,9 +204,10 @@ li {{ margin:4px 0; }}
 <li><b>loi_cong_to</b>: công tơ thấp hơn hẳn tổng inverter, hoặc báo 0 khi inverter vẫn phát (lỗi nằm ở O1, không ở inverter).</li>
 <li><b>khong_ro</b>: không phân biệt được (mây, clipping, nhiều inverter mất số liệu từng lúc…).</li>
 </ul>
-<p>Ghi kết luận vào <code>docs/kiem_tay/phieu_kiem_tay.csv</code>, cột <code>ket_luan</code>. Hai người kiểm độc lập,
-ghi tên ở <code>nguoi_kiem_1</code>, <code>nguoi_kiem_2</code>; ngày hai người khác ý thì bàn lại và ghi vào
-<code>ghi_chu</code>. Cột <code>goi_y_gap_ratio</code> chỉ là gợi ý của máy, đừng chép theo.</p>
+<p>Ghi vào <code>docs/kiem_tay/phieu_kiem_tay.csv</code>. Hai người kiểm độc lập: người 1 điền <code>nguoi_kiem_1</code>,
+<code>ket_luan_1</code>; người 2 điền <code>nguoi_kiem_2</code>, <code>ket_luan_2</code>, không xem cột của người kia.
+Sau đó bàn những ngày khác ý, điền <code>ket_luan_chot</code> và lý do ở <code>ghi_chu</code>.
+Cột <code>goi_y_gap_ratio</code> chỉ là gợi ý của máy, đừng chép theo.</p>
 {''.join(cards)}
 </body></html>"""
     (out / "index.html").write_text(page, encoding="utf-8")

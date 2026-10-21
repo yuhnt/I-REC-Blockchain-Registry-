@@ -5,12 +5,12 @@ Việc còn treo từ giai đoạn 2 (SPEC mục 5, `scenarios.yaml` → `invert
 ## Cách làm
 
 1. Dựng bộ hình (khoảng 1 phút): `.venv/Scripts/python -m rec.data.manual_check`. Mở `artifacts/manual_check/index.html`: một trang gồm 50 hình kèm hướng dẫn.
-2. Hai người kiểm **độc lập**. Mỗi người ghi kết luận cho từng ngày vào `phieu_kiem_tay.csv` (file này, mở được bằng Excel):
+2. Hai người kiểm **độc lập**, không xem cột của nhau: người 1 điền `nguoi_kiem_1`, `ket_luan_1`; người 2 điền `nguoi_kiem_2`, `ket_luan_2` trong `phieu_kiem_tay.csv` (mở được bằng Excel). Giá trị kết luận:
    - `ngung_that`: ở vùng tô, công tơ giảm theo tổng inverter; khung giữa nằm quanh 0;
    - `ngung_ghi`: inverter báo 0 nhưng công tơ không giảm; khung giữa bám theo đường đứt;
    - `loi_cong_to`: công tơ thấp hơn hẳn tổng inverter, hoặc báo 0 khi inverter vẫn phát;
    - `khong_ro`: không phân biệt được.
-3. Ngày hai người khác ý thì bàn lại, ghi lý do vào `ghi_chu`, rồi chốt `ket_luan`. Commit phiếu đã điền.
+3. Ngày hai người khác ý thì bàn lại, điền `ket_luan_chot` và lý do ở `ghi_chu` (ngày cùng ý thì chép kết luận chung). Commit phiếu đã điền.
 4. Cột `goi_y_gap_ratio` là gợi ý của máy. Nó sai ở những ngày có nhiều lỗi chồng nhau (ví dụ 27/8/2021: cả bộ ghi inverter về 0 sau 15:00, gợi ý chỉ ra 0,16). Không chép theo cột này.
 
 ## Mẫu
