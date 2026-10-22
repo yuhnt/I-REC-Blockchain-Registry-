@@ -261,15 +261,23 @@ Cài đặt: `rec/registry/base.py`, `sqlite_registry.py` (hai biến thể B0),
 
 ## 12. Dashboard (`dashboard/app.py`)
 
-Dựng chain demo bằng `python -m rec.experiments.demo` (node Hardhat chạy nền, ghi `artifacts/demo/deployment.json`), rồi `streamlit run dashboard/app.py`. Demo gồm 20 ngày dòng hợp lệ (Proposed), D1, D4a, một lô khai tăng 45% đang chờ auditor, và một lần tạm khóa và rút của Code Manager.
+Dựng chain demo bằng `python -m rec.experiments.demo` (node Hardhat chạy nền, ghi `artifacts/demo/deployment.json`), rồi `streamlit run dashboard/app.py`. Demo gồm:
+- 20 ngày dòng hợp lệ (cấu hình Proposed), có chuyển nhượng và retire;
+- D1, D4a bị REJECT;
+- ba lô chờ auditor: O1 khai tăng 45% (k = 1), cả ba nguồn tại chỗ tăng 20% (k = 3), và một lô trung thực bị REVIEW nhầm. Mã yêu cầu trung tính, không lộ nhãn;
+- một lần tạm khóa và rút của Code Manager.
 
-| Màn hình | Nội dung | Đọc từ |
+Mỗi vai một trang, chọn ở thanh bên. Trong demo, giao dịch được ký bằng tài khoản đã mở khóa của node Hardhat; khi vận hành thật, mỗi bên ký bằng ví riêng.
+
+| Vai | Xem | Làm |
 |---|---|---|
-| Tổng quan | Số lô theo ngày: MINT / REJECT / REVIEW / bị rút; tổng MWh đã phát hành, đã retire | Event `Issued`, `IssueRejected`, `LotReview`, `Withdrawn`, `Retired` |
-| Tra chứng chỉ | Nhập `tokenId` hoặc (thiết bị, ngày) → lineage: đăng ký thiết bị → bằng chứng của lô (4 báo cáo, nút "kiểm hash" so file trong kho với `data_root`) → verdict và reason code → `Issued` → các lần chuyển nhượng → `Retired` hoặc `Withdrawn` | Event của cả 3 contract; kho file |
-| Hàng đợi REVIEW | Lô đang REVIEW: cờ, reason code; biểu đồ O1 so với O2, E₃ và trần trong ngày; nút duyệt / bác (khi demo, ký bằng khóa auditor) | `LotReview`, `lotState`; kho file |
-| Nhật ký công khai | Mọi `IssueRejected` kèm lý do; mọi thao tác của Code Manager kèm lý do; `O1Conflict` | Event |
-| Lineage completeness | % chứng chỉ dựng lại được đủ chuỗi chỉ từ event và kho file | Như trên |
+| **Công khai** | Tổng quan (MWh phát hành và retire, số REJECT, REVIEW, thao tác Code Manager); bảng mọi chứng chỉ, bấm một dòng để xem chuỗi truy vết; nhật ký công khai (REJECT kèm lý do, Code Manager, phân xử của auditor); lineage completeness | — |
+| **Nhà máy** | Chứng chỉ đang giữ: được MINT thẳng vào địa chỉ nhà máy (`holderOf[CP]`) khi lô qua lớp A và lớp B; lượng đã chuyển; số yêu cầu đang chờ auditor | Chuyển nhượng cho người mua (`safeTransferFrom`; thanh toán nằm ngoài hệ thống); retire nếu tự dùng |
+| **Người mua** | Chứng chỉ đang giữ; các tuyên bố đã retire, mỗi tuyên bố dựng lại từ event `Retired` (người thụ hưởng, mục đích, nơi tiêu thụ, kỳ báo cáo, nguồn, tx) | Chuyển tiếp; retire (I-REC §10, không đảo ngược) |
+| **Issuer** | Yêu cầu bị giữ vì lô REVIEW và trạng thái lô; yêu cầu bị REJECT kèm lý do | Gửi lại các yêu cầu của lô đã được duyệt |
+| **Production Auditor** | Bảng mọi chứng chỉ chờ phát hành đang bị giữ; bấm một dòng để xem chi tiết: lượng xin, cả lô, 4 báo cáo oracle (kiểm hash file gốc theo `data_root`), cờ, reason code (tỷ số nhất quán, trần), biểu đồ O1 so với O2 trong ngày. Có thêm mục lô đã phân xử và chứng chỉ đang bị tạm khóa | Duyệt hoặc bác **cả lô** (`resolveReview`, kèm hash của lý do) |
+
+Các bảng là bảng bấm chọn dòng; sau mỗi giao dịch, lựa chọn được xóa để không nhảy sang chứng chỉ hoặc lô khác.
 
 ## 13. Test kiểm luồng
 

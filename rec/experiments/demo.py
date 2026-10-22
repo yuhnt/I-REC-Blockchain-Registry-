@@ -3,7 +3,9 @@
 - 20 ngày đầu của dòng hợp lệ (seed 101), cấu hình Proposed, auditor duyệt lô REVIEW lúc 23:00 ngày d + 1;
 - D1: nộp lại một (thiết bị, ngày) đã phát hành → IssueRejected(KEY);
 - D4a: issuerB đăng ký thiết bị mới cùng CP, chép sản lượng → IssueRejected(BUDGET);
-- sau 20 ngày: O1 khai tăng 45% (M2, k = 1) → lô nằm trong hàng đợi REVIEW, chưa phân xử (để thử nút duyệt / bác);
+- sau 20 ngày, ba lô nằm trong hàng đợi REVIEW, chưa phân xử (để thử trang Production Auditor):
+  O1 khai tăng 45% (M2, k = 1, cờ không nhất quán); O1, O2, O3 cùng tăng 20% (M2, k = 3, cờ vượt trần; phần lớn các
+  ngày khác lọt); và một lô trung thực bị REVIEW nhầm (trong 180 ngày tiếp theo);
 - Code Manager tạm khóa một chứng chỉ rồi rút một phần, kèm lý do;
 - issuer thử gọi `withdraw` (insider) → revert, không ghi được gì.
 
@@ -82,24 +84,46 @@ def main(argv: list[str]) -> int:
     d4a = chain.issue(IssueRequest("demo-D4a", issuer_b, "X-D4a", first, (wh_b2,)), t_after + 20)
     print("D1:", d1.kind, d1.reason, "| D4a:", d4a.kind, d4a.reason)
 
-    # Sau 20 ngày: O1 khai tăng 45% (M2, k = 1) → REVIEW, để trống cho auditor trên dashboard. Chọn ngày mà slot
-    # lớn nhất sau khi tăng vẫn dưới công suất CP × 0,25 h, để lô không bị luật công suất REJECT trước.
+    # Sau 20 ngày: các lô nằm trong hàng đợi REVIEW, để trống cho auditor trên dashboard. Chọn ngày mà slot lớn nhất
+    # sau khi tăng vẫn dưới công suất CP × 0,25 h, để lô không bị luật công suất REJECT trước khi tới lớp B.
     slot_cap = plant.cp_capacity_w[cp] / 4
-    day = next(d for d in test_days[DEMO_DAYS:] if np.nanmax(data[d].series[OracleId.O1]) * GAIN < slot_cap)
-    dd = data[day]
-    series = {o: v.copy() for o, v in dd.series.items()}
-    series[OracleId.O1] = series[OracleId.O1] * GAIN
-    reports = reports_for(dd, cp, series)
-    for o, r in zip(OracleId, reports):
-        store.put(o, cp, day, series[o], slot_ends.get(day))
-    v = verifier.evaluate(day, series, dd.sun, temps[day])
-    ev = LotEvidence(cp, day, tuple(reports), v.flags, v.sun_slots, v.ceiling_wh, v.model_hash,
-                     store.put_json(v.reasons))
-    chain.submit_lot_evidence(ev, issuer_a, local_t(day + 1, EVIDENCE_AT))
-    shares = allocate(reports[0].wh_day, {b: dd.block_wh.get(b, 0.0) for b in pcfg["devices"]})
-    held = [chain.issue(IssueRequest(f"demo-M2-{b}", issuer_a, b, day, (wh,)), local_t(day + 1, REQUEST_AT) + i)
-            for i, (b, wh) in enumerate(shares.items()) if wh > 0]
-    print(f"ngày {day}: cờ {v.flags}, kết cục {[o.kind + ':' + o.reason for o in held]}")
+    used: set[int] = set()
+    held_reqs: list[dict] = []
+
+    def pending_lot(tag: str, gains: dict, want_flags: bool = True) -> int | None:
+        for day in test_days[DEMO_DAYS:DEMO_DAYS + 180]:
+            dd = data[day]
+            if day in used or np.nanmax(dd.series[OracleId.O1]) * gains.get(OracleId.O1, 1.0) >= slot_cap:
+                continue
+            series = {o: v.copy() * gains.get(o, 1.0) for o, v in dd.series.items()}
+            v = verifier.evaluate(day, series, dd.sun, temps[day])
+            if (v.flags != 0) != want_flags:
+                continue
+            used.add(day)
+            reports = reports_for(dd, cp, series)
+            for o in OracleId:
+                store.put(o, cp, day, series[o], slot_ends.get(day))
+            ev = LotEvidence(cp, day, tuple(reports), v.flags, v.sun_slots, v.ceiling_wh, v.model_hash,
+                             store.put_json(v.reasons))
+            chain.submit_lot_evidence(ev, issuer_a, local_t(day + 1, EVIDENCE_AT))
+            shares = allocate(reports[0].wh_day, {b: dd.block_wh.get(b, 0.0) for b in pcfg["devices"]})
+            for i, (b, wh) in enumerate(shares.items()):
+                if wh <= 0:
+                    continue
+                rid = f"req-{day}-{b}"  # mã trung tính: auditor không được thấy nhãn của kịch bản
+                out = chain.issue(IssueRequest(rid, issuer_a, b, day, (wh,)), local_t(day + 1, REQUEST_AT) + i)
+                if out.kind == "held":  # issuer giữ yêu cầu off-chain để gửi lại sau khi auditor duyệt
+                    held_reqs.append({"req_id": rid, "issuer": issuer_a, "device": b, "day": day, "wh": wh,
+                                      "scenario": tag})
+            print(f"lô {tag}: ngày {day}, cờ {v.flags}")
+            return day
+        print(f"lô {tag}: không tìm được ngày phù hợp")
+        return None
+
+    day = pending_lot("M2-k1", {OracleId.O1: GAIN})
+    # Ở k = 3 phần lớn các ngày khai tăng 20% vẫn lọt dưới trần AI (đúng như LMAX ≈ 12% của E2); chọn ngày bị bắt.
+    pending_lot("M2-k3", {OracleId.O1: 1.2, OracleId.O2: 1.2, OracleId.O3: 1.2})
+    pending_lot("honest", {})  # dữ liệu thật, không sửa: lô trung thực mà Proposed REVIEW nhầm
 
     # Code Manager: tạm khóa rồi rút một phần một chứng chỉ chưa retire; insider thử withdraw.
     t_cm = local_t(day + 2, 12 * 3600)
@@ -115,7 +139,8 @@ def main(argv: list[str]) -> int:
     dep = {"url": node.url, "node_pid": node.proc.pid, "store": str(artifacts / "store"),
            "contracts": {"DeviceRegistry": chain.devices.address, "CertificateRegistry": chain.certs.address,
                          "DecisionGate": chain.gate.address},
-           "roles": chain.addr, "review_day": day, "profile": "Proposed", "variant": "prereg"}
+           "roles": chain.addr, "review_day": day, "profile": "Proposed", "variant": "prereg",
+           "held_requests": held_reqs}
     dep_path.parent.mkdir(parents=True, exist_ok=True)
     dep_path.write_text(json.dumps(dep, indent=2, ensure_ascii=False), encoding="utf-8")
     print("đã ghi", dep_path, "| node vẫn chạy ở", node.url, "(PID", node.proc.pid, ")")

@@ -152,7 +152,7 @@ source/
 ├─ rec/            # schema, timeutil, config, manifest; data/, oracles/, generator/, physics/, checks/, model/, gate/, metrics/, experiments/
 ├─ tests/          # pytest
 ├─ manifests/      # hash của từng mốc, CHANGES.md
-├─ dashboard/      # Streamlit: tổng quan, tra chứng chỉ, hàng đợi REVIEW, nhật ký công khai, lineage
+├─ dashboard/      # Streamlit theo vai: công khai, nhà máy, người mua, issuer, Production Auditor
 ├─ docs/figures/   # script vẽ hình của proposal
 └─ contracts/      # Hardhat: DeviceRegistry, CertificateRegistry, DecisionGate; test/ theo điều khoản I-REC
 ```

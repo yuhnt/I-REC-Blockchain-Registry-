@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import socket
 import re
 import subprocess
 import time
@@ -50,6 +51,10 @@ class HardhatNode:
 
     def __init__(self, port: int = 8545, initial_date: str = "2021-12-01T00:00:00Z", interval_ms: int | None = None):
         self.port = port
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:  # không dùng nhầm một node khác đang chạy
+            if probe.connect_ex(("127.0.0.1", port)) == 0:
+                raise RuntimeError(f"cổng {port} đã có tiến trình khác; dừng node cũ (ví dụ rec.experiments.demo --stop)"
+                                   " hoặc chọn --port khác")
         env = dict(os.environ, REC_INITIAL_DATE=initial_date)
         if interval_ms:
             env["REC_INTERVAL_MS"] = str(interval_ms)
