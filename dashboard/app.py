@@ -1,11 +1,14 @@
 """Dashboard (FLOW.md mục 12): mỗi vai một trang, đọc event on-chain và kho file theo `data_root`.
 
 - Công khai: tổng quan, tra mọi chứng chỉ, nhật ký công khai, lineage completeness;
-- Nhà máy: chứng chỉ đang giữ (được MINT thẳng vào địa chỉ nhà máy), chuyển nhượng cho người mua, retire;
-- Người mua: chứng chỉ đang giữ, chuyển tiếp, retire kèm tuyên bố (I-REC §10), xem lại các tuyên bố đã ghi;
+- Nhà máy: sản xuất theo ngày (công tơ, inverter, bức xạ, kết cục từng thiết bị), chứng chỉ đang giữ (được MINT thẳng
+  vào địa chỉ nhà máy), yêu cầu bị từ chối / bị giữ, chuyển nhượng cho người mua và lịch sử đã chuyển, retire;
+- Người mua: chứng chỉ đang giữ, chứng chỉ trên hệ thống (nhà máy còn giữ bao nhiêu), lịch sử nhận, chuyển tiếp,
+  retire kèm tuyên bố (I-REC §10), xem lại các tuyên bố đã ghi;
 - Issuer: yêu cầu phát hành bị giữ vì lô REVIEW, gửi lại sau khi auditor duyệt;
-- Production Auditor: mọi chứng chỉ chờ phát hành đang bị giữ, bấm vào một dòng để xem chi tiết lô và bằng
-  chứng, rồi duyệt / bác; chứng chỉ đang bị Code Manager tạm khóa.
+- Production Auditor: chứng chỉ chờ phát hành đang bị giữ (bấm vào để xem bằng chứng rồi duyệt / bác cả lô), mọi lô
+  đã gửi, yêu cầu bị từ chối, lô đã phân xử, chứng chỉ đang bị Code Manager tạm khóa.
+Mọi bảng có cột thời điểm theo giờ nhà máy (Hardhat cục bộ: đồng hồ mô phỏng; Sepolia: giờ thật).
 
 Chạy sau khi dựng chain demo:
     python -m rec.experiments.demo                  (Hardhat cục bộ)
@@ -183,7 +186,8 @@ def send(fn, role: str, done: str) -> None:
 
 def clear_selection() -> None:
     """Bỏ chọn mọi bảng sau một giao dịch, để dòng đang chọn không nhảy sang chứng chỉ hoặc lô khác."""
-    for k in [k for k in st.session_state if k.endswith(("-certs", "-queue", "-done", "-locked", "-stmts"))]:
+    for k in [k for k in st.session_state if k.endswith(("-certs", "-queue", "-done", "-locked", "-stmts", "-days",
+                                                             "-sent", "-all", "-got", "-lots"))]:
         del st.session_state[k]
 
 
@@ -207,43 +211,57 @@ except Exception as e:  # noqa: BLE001 – lỗi RPC: hiện thông báo đã b�
     st.stop()
 addr_name = {v: k for k, v in chain.dep["roles"].items()}
 name_of = lambda a: addr_name.get(a, a[:10] + "…")  # noqa: E731
+PLANT = chain.dep["roles"]["plant"]
+CP = next(iter(s32(e["cpId"]) for e in ev["DeviceRegistered"]), "CP-1")
+REASON_TEXT = {"key": "trùng (thiết bị, ngày) đã phát hành", "budget": "vượt sản lượng công tơ của CP",
+               "capacity": "vượt công suất thiết bị hoặc CP", "period": "kỳ phát hành sai quy định (§8.2)",
+               "oracle": "lô chưa có bằng chứng oracle", "lot_rejected": "auditor đã bác lô",
+               "not_issuer": "người gửi không phải issuer của thiết bị", "not_registered": "thiết bị chưa đăng ký"}
 
 
-def certificates() -> pd.DataFrame:
-    """Một dòng mỗi chứng chỉ (thiết bị-ngày) đã phát hành, kèm lượng đã retire / đã rút và trạng thái khóa."""
-    rows = []
-    retired, withdrawn = {}, {}
-    for e in ev["Retired"]:
-        retired[int(e["tokenId"])] = retired.get(int(e["tokenId"]), 0) + e["wh"]
-    for e in ev["Withdrawn"]:
-        withdrawn[int(e["tokenId"])] = withdrawn.get(int(e["tokenId"]), 0) + e["wh"]
-    suspended = {}
-    for e in sorted(ev["Suspended"], key=lambda x: x["block"]):
-        suspended[int(e["tokenId"])] = e["active"]
-    cp_of = {s32(e["deviceId"]): s32(e["cpId"]) for e in ev["DeviceRegistered"]}
-    for e in ev["Issued"]:
-        tid = int(e["tokenId"])
-        rows.append({"tokenId": tid, "mã": hex(tid)[:12] + "…", "thiết bị": s32(e["deviceId"]),
-                     "CP": cp_of.get(s32(e["deviceId"]), ""), "ngày sản xuất": day_date(int(e["day"])),
-                     "phát hành (kWh)": e["wh"] / 1000, "đã retire (kWh)": retired.get(tid, 0) / 1000,
-                     "đã rút (kWh)": withdrawn.get(tid, 0) / 1000,
-                     "trạng thái": "tạm khóa" if suspended.get(tid) else "bình thường"})
-    return pd.DataFrame(rows)
+@st.cache_resource
+def block_times(source: str) -> dict:
+    return {}
 
 
-def holdings(addr: str) -> pd.DataFrame:
-    """Chứng chỉ mà địa chỉ `addr` đang giữ (số dư ERC-1155 > 0)."""
-    certs = certificates()
-    if certs.empty:
-        return certs
-    bal = chain.certs.functions.balanceOfBatch([addr] * len(certs), [int(t) for t in certs["tokenId"]]).call()
-    certs.insert(5, "đang giữ (kWh)", [b / 1000 for b in bal])
-    return certs[certs["đang giữ (kWh)"] > 0].reset_index(drop=True)
+def when(n: int) -> str:
+    """Thời điểm của block theo giờ nhà máy (Hardhat cục bộ: đồng hồ mô phỏng; Sepolia: giờ thật)."""
+    cache = block_times(source)
+    if n not in cache:
+        ts = chain.w3.eth.get_block(n)["timestamp"]
+        cache[n] = pd.Timestamp(ts, unit="s", tz="UTC").tz_convert(PLANT_TZ).strftime("%Y-%m-%d %H:%M")
+    return cache[n]
 
 
-def section(options: list[str], key: str) -> str:
-    """Thanh chọn mục giữ nguyên khi trang tải lại (st.tabs quay về tab đầu sau mỗi lần chọn dòng)."""
-    return st.radio("Mục", options, horizontal=True, key=key, label_visibility="collapsed")
+def reason_of(e: dict) -> str:
+    code = REASONS[int(e["reason"])].value
+    return f"{code}: {REASON_TEXT.get(code, '')}"
+
+
+def tx_url(h: str) -> str | None:
+    return f"{chain.explorer}/tx/{h}" if chain.explorer else None
+
+
+def column_config(df: pd.DataFrame) -> dict:
+    """Định dạng thống nhất: kWh một chữ số thập phân, MWh ba chữ số, liên kết giao dịch."""
+    cfg = {}
+    for c in df.columns:
+        if "(kWh)" in c:
+            cfg[c] = st.column_config.NumberColumn(c, format="%.1f")
+        elif "(MWh)" in c:
+            cfg[c] = st.column_config.NumberColumn(c, format="%.3f")
+        elif c == "giao dịch":
+            cfg[c] = st.column_config.LinkColumn(c, display_text="Etherscan") if chain.explorer else \
+                st.column_config.TextColumn(c)
+    return cfg
+
+
+def show(df: pd.DataFrame, hide: tuple = ()) -> None:
+    if df.empty:
+        st.info("Không có dòng nào.")
+        return
+    view = df.drop(columns=[c for c in hide if c in df])
+    st.dataframe(view, hide_index=True, use_container_width=True, column_config=column_config(view))
 
 
 def pick(df: pd.DataFrame, key: str, hide: tuple = ("tokenId",)) -> int | None:
@@ -251,10 +269,132 @@ def pick(df: pd.DataFrame, key: str, hide: tuple = ("tokenId",)) -> int | None:
     if df.empty:
         st.info("Không có dòng nào.")
         return None
-    sel = st.dataframe(df.drop(columns=[c for c in hide if c in df]), hide_index=True, use_container_width=True,
-                       on_select="rerun", selection_mode="single-row", key=key)
+    view = df.drop(columns=[c for c in hide if c in df])
+    sel = st.dataframe(view, hide_index=True, use_container_width=True, on_select="rerun",
+                       selection_mode="single-row", key=key, column_config=column_config(view))
     rows = sel.selection.rows
     return rows[0] if rows else None
+
+
+def section(options: list[str], key: str) -> str:
+    """Thanh chọn mục giữ nguyên khi trang tải lại (st.tabs quay về tab đầu sau mỗi lần chọn dòng)."""
+    return st.radio("Mục", options, horizontal=True, key=key, label_visibility="collapsed")
+
+
+def mwh(wh: float) -> str:
+    return f"{wh / 1e6:,.2f} MWh"
+
+
+# ====================================================================== bảng dữ liệu
+
+def cert_of() -> dict[int, tuple[str, int]]:
+    return {int(e["tokenId"]): (s32(e["deviceId"]), int(e["day"])) for e in ev["Issued"]}
+
+
+def certificates() -> pd.DataFrame:
+    """Một dòng mỗi chứng chỉ (thiết bị-ngày) đã phát hành, kèm lượng đã retire / đã rút và trạng thái khóa."""
+    rows = []
+    retired, withdrawn, suspended = {}, {}, {}
+    for e in ev["Retired"]:
+        retired[int(e["tokenId"])] = retired.get(int(e["tokenId"]), 0) + e["wh"]
+    for e in ev["Withdrawn"]:
+        withdrawn[int(e["tokenId"])] = withdrawn.get(int(e["tokenId"]), 0) + e["wh"]
+    for e in sorted(ev["Suspended"], key=lambda x: x["block"]):
+        suspended[int(e["tokenId"])] = e["active"]
+    cp_of = {s32(e["deviceId"]): s32(e["cpId"]) for e in ev["DeviceRegistered"]}
+    for e in ev["Issued"]:
+        tid = int(e["tokenId"])
+        rows.append({"tokenId": tid, "mã": hex(tid)[:12] + "…", "thiết bị": s32(e["deviceId"]),
+                     "CP": cp_of.get(s32(e["deviceId"]), ""), "ngày sản xuất": day_date(int(e["day"])).isoformat(),
+                     "phát hành (kWh)": e["wh"] / 1000, "đã retire (kWh)": retired.get(tid, 0) / 1000,
+                     "đã rút (kWh)": withdrawn.get(tid, 0) / 1000,
+                     "trạng thái": "tạm khóa" if suspended.get(tid) else "bình thường"})
+    return pd.DataFrame(rows)
+
+
+def balances(df: pd.DataFrame, addr: str, col: str, pos: int = 6) -> pd.DataFrame:
+    """Thêm cột số dư ERC-1155 của `addr` cho từng chứng chỉ."""
+    if df.empty:
+        return df
+    bal = chain.certs.functions.balanceOfBatch([addr] * len(df), [int(t) for t in df["tokenId"]]).call()
+    out = df.copy()
+    out.insert(pos, col, [b / 1000 for b in bal])
+    return out
+
+
+def holdings(addr: str) -> pd.DataFrame:
+    """Chứng chỉ mà địa chỉ `addr` đang giữ (số dư ERC-1155 > 0)."""
+    df = balances(certificates(), addr, "đang giữ (kWh)")
+    return df[df["đang giữ (kWh)"] > 0].reset_index(drop=True) if len(df) else df
+
+
+def transfers(addr: str, outgoing: bool) -> pd.DataFrame:
+    """Chuyển nhượng đi (outgoing) hoặc nhận về của một địa chỉ; không tính mint và burn."""
+    cmap = cert_of()
+    rows = []
+    for e in sorted(ev["TransferSingle"], key=lambda x: -x["block"]):
+        if e["from"] == ZERO or e["to"] == ZERO or (e["from"] if outgoing else e["to"]) != addr:
+            continue
+        dev, day = cmap.get(int(e["id"]), ("?", 0))
+        rows.append({"tokenId": int(e["id"]), "thời điểm": when(e["block"]),
+                     ("người nhận" if outgoing else "người chuyển"): name_of(e["to"] if outgoing else e["from"]),
+                     "thiết bị": dev, "ngày sản xuất": day_date(day).isoformat() if day else "",
+                     "lượng (kWh)": e["value"] / 1000, "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"})
+    return pd.DataFrame(rows)
+
+
+def requests_of_cp(cp: str) -> pd.DataFrame:
+    """Mọi yêu cầu phát hành bị từ chối hoặc đang bị giữ tại CP, kèm thời điểm và lý do."""
+    devs = {s32(e["deviceId"]): name_of(e["issuer"]) for e in ev["DeviceRegistered"] if s32(e["cpId"]) == cp}
+    held_info = {r["req_id"]: r for r in chain.dep.get("held_requests", [])}
+    lots = {bytes(e["lotKey"]): e for e in ev["LotEvidenced"]}
+    rows = []
+    for e in ev["IssueRejected"]:
+        dev = s32(e["deviceId"])
+        if dev in devs:
+            rows.append({"thời điểm": when(e["block"]), "kết cục": "bị từ chối", "thiết bị": dev, "issuer": devs[dev],
+                         "ngày sản xuất": day_date(int(e["day"])).isoformat(), "lý do": reason_of(e),
+                         "yêu cầu": s32(e["reqId"]), "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"})
+    seen = set()
+    for e in ev["IssueHeld"]:
+        rid, key = s32(e["reqId"]), bytes(e["lotKey"])
+        status = chain.gate.functions.lotState(key).call()[4] if key in lots else 0
+        if rid in seen or status != 2:  # chỉ yêu cầu của lô còn REVIEW
+            continue
+        seen.add(rid)
+        info = held_info.get(rid, {})
+        rows.append({"thời điểm": when(e["block"]), "kết cục": "bị giữ (chờ auditor)",
+                     "thiết bị": info.get("device", "—"), "issuer": info.get("issuer", "—"),
+                     "ngày sản xuất": day_date(int(lots[key]["day"])).isoformat(),
+                     "lý do": "lô bị lớp B đánh dấu: " + flags_text(int(lots[key]["flags"])),
+                     "yêu cầu": rid, "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"})
+    return pd.DataFrame(rows).sort_values("thời điểm", ascending=False).reset_index(drop=True) if rows else \
+        pd.DataFrame()
+
+
+def production_by_day(cp: str) -> pd.DataFrame:
+    """Mỗi ngày sản xuất: sản lượng công tơ (O1), lượng đã phát hành, số yêu cầu bị giữ / bị từ chối."""
+    devs = {s32(e["deviceId"]) for e in ev["DeviceRegistered"] if s32(e["cpId"]) == cp}
+    issued, n_cert, rejected = {}, {}, {}
+    for e in ev["Issued"]:
+        if s32(e["deviceId"]) in devs:
+            d = int(e["day"])
+            issued[d] = issued.get(d, 0) + e["wh"]
+            n_cert[d] = n_cert.get(d, 0) + 1
+    for e in ev["IssueRejected"]:
+        if s32(e["deviceId"]) in devs:
+            rejected[int(e["day"])] = rejected.get(int(e["day"]), 0) + 1
+    rows = []
+    for e in ev["LotEvidenced"]:
+        if s32(e["cpId"]) != cp:
+            continue
+        d = int(e["day"])
+        status = chain.gate.functions.lotState(bytes(e["lotKey"])).call()[4]
+        rows.append({"day": d, "ngày sản xuất": day_date(d).isoformat(), "công tơ O1 (kWh)": e["o1Wh"] / 1000,
+                     "đã phát hành (kWh)": issued.get(d, 0) / 1000, "chứng chỉ": n_cert.get(d, 0),
+                     "yêu cầu bị từ chối": rejected.get(d, 0), "cờ lớp B": flags_text(int(e["flags"])),
+                     "trạng thái lô": STATUS[status], "gửi bằng chứng lúc": when(e["block"])})
+    return pd.DataFrame(rows).sort_values("day").reset_index(drop=True) if rows else pd.DataFrame()
 
 
 # ====================================================================== thành phần chi tiết
@@ -265,25 +405,50 @@ def lot_of(cp: str, day: int):
     return key, lot
 
 
+def series_chart(roots: list[bytes], names: tuple, scale: float, unit: str, colors: list[str]) -> None:
+    series = {}
+    for name, x in zip(names, roots):
+        try:
+            doc = chain.store.get(x)
+            series[name] = pd.Series([None if v is None else v * scale for v in doc["values"]],
+                                     index=pd.to_datetime(doc["slot_ends"]), dtype=float)
+        except Exception:  # noqa: BLE001 – thiếu file hoặc file bị sửa
+            pass
+    if not series:
+        return
+    df = pd.DataFrame(series)
+    df.index = df.index.tz_convert(PLANT_TZ).tz_localize(None).tz_localize("UTC")  # giờ đồng hồ của nhà máy
+    long = df.reset_index(names="t").melt("t", var_name="nguồn", value_name="v").dropna()
+    st.altair_chart(alt.Chart(long).mark_line(strokeWidth=2).encode(
+        x=alt.X("utchoursminutes(t):T", title="Giờ địa phương của nhà máy"), y=alt.Y("v:Q", title=unit),
+        color=alt.Color("nguồn:N", scale=alt.Scale(range=colors), legend=alt.Legend(orient="top", title=None)),
+        tooltip=["nguồn", alt.Tooltip("utchoursminutes(t):T", title="giờ"), alt.Tooltip("v:Q", title=unit, format=".1f")]),
+        use_container_width=True)
+
+
 def evidence_block(key: bytes, lot: dict) -> None:
     """Bằng chứng của lô: 4 báo cáo theo data_root (kiểm hash), cờ, reason code, biểu đồ 15 phút."""
     status = chain.gate.functions.lotState(key).call()[4]
     roots = [bytes(x) for x in lot["dataRoots"]]
     files = []
-    for name, x in zip(("O1 công tơ (Wh)", "O2 tổng inverter (Wh)", "O3 POA tại chỗ (Wh/m²)", "O4 NSRDB (Wh/m²)"),
-                       roots):
+    for name, unit, x in zip(("O1 công tơ", "O2 tổng 24 inverter", "O3 bức xạ tại chỗ", "O4 bức xạ vệ tinh NSRDB"),
+                             ("kWh", "kWh", "kWh/m²", "kWh/m²"), roots):
         try:
             doc = chain.store.get(x)
             vals = [v for v in doc["values"] if v is not None]
-            files.append({"oracle": name, "tổng ngày": sum(vals), "slot lớn nhất": max(vals, default=0),
+            files.append({"oracle": name, "đơn vị": unit, "tổng ngày": round(sum(vals) / 1000, 2),
+                          "slot lớn nhất": round(max(vals, default=0) / 1000, 3),
+                          "slot có số liệu": f"{len(vals)}/{len(doc['values'])}",
                           "data_root": x.hex()[:16] + "…", "file gốc": "✔ khớp hash"})
-        except Exception:  # noqa: BLE001 – thiếu file hoặc file bị sửa
-            files.append({"oracle": name, "tổng ngày": None, "slot lớn nhất": None,
-                          "data_root": x.hex()[:16] + "…", "file gốc": "✘ thiếu hoặc bị sửa"})
+        except Exception:  # noqa: BLE001
+            files.append({"oracle": name, "đơn vị": unit, "tổng ngày": None, "slot lớn nhất": None,
+                          "slot có số liệu": "", "data_root": x.hex()[:16] + "…", "file gốc": "✘ thiếu hoặc bị sửa"})
     c1, c2, c3 = st.columns(3)
     c1.metric("O1 công tơ", f"{lot['o1Wh'] / 1000:,.1f} kWh")
     c2.metric("Cờ lớp B", flags_text(int(lot["flags"])))
     c3.metric("Trạng thái lô", STATUS[status])
+    st.caption(f"Bằng chứng gửi lúc {when(lot['block'])} (giờ nhà máy). Số liệu từng inverter không đưa lên chain; "
+               "O2 là tổng 24 inverter của 6 thiết bị.")
     st.dataframe(pd.DataFrame(files), hide_index=True, use_container_width=True)
     rv = next((e for e in ev["LotReview"] if bytes(e["lotKey"]) == key), None)
     if rv is not None:
@@ -301,23 +466,13 @@ def evidence_block(key: bytes, lot: dict) -> None:
             if "coverage" in r:
                 parts.append("độ phủ: " + ", ".join(f"{k} {v:.0%}" for k, v in r["coverage"].items()))
             st.write("**Reason code của verifier:** " + " · ".join(parts))
-    series = {}
-    for name, x, scale in (("O1 công tơ", roots[0], 4 / 1000), ("O2 tổng inverter", roots[1], 4 / 1000)):
-        try:
-            doc = chain.store.get(x)
-            series[name] = pd.Series([None if v is None else v * scale for v in doc["values"]],
-                                     index=pd.to_datetime(doc["slot_ends"]), dtype=float)
-        except Exception:  # noqa: BLE001
-            pass
-    if series:
-        df = pd.DataFrame(series)
-        df.index = df.index.tz_convert(PLANT_TZ).tz_localize(None).tz_localize("UTC")  # giờ đồng hồ của nhà máy
-        long = df.reset_index(names="t").melt("t", var_name="nguồn", value_name="kW").dropna()
-        st.altair_chart(alt.Chart(long).mark_line(strokeWidth=2).encode(
-            x=alt.X("utchoursminutes(t):T", title="Giờ địa phương của nhà máy"), y=alt.Y("kW:Q", title="kW"),
-            color=alt.Color("nguồn:N", scale=alt.Scale(range=["#2a78d6", "#eb6834"])),
-            tooltip=["nguồn", alt.Tooltip("utchoursminutes(t):T", title="giờ"), alt.Tooltip("kW:Q", format=".1f")]),
-            use_container_width=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**Công suất: công tơ so với tổng inverter**")
+        series_chart(roots[:2], ("O1 công tơ", "O2 tổng inverter"), 4 / 1000, "kW", ["#2a78d6", "#eb6834"])
+    with c2:
+        st.markdown("**Bức xạ: cảm biến tại chỗ so với vệ tinh**")
+        series_chart(roots[2:], ("O3 tại chỗ", "O4 NSRDB"), 4, "W/m²", ["#1baf7a", "#6250d6"])
 
 
 def certificate_detail(tid: int) -> None:
@@ -329,40 +484,39 @@ def certificate_detail(tid: int) -> None:
     dev, day = s32(iss["deviceId"]), int(iss["day"])
     reg = next((e for e in ev["DeviceRegistered"] if s32(e["deviceId"]) == dev), None)
     cp = s32(reg["cpId"]) if reg else ""
-    st.markdown(f"#### Chứng chỉ {dev} · {day_date(day)}")
+    st.markdown(f"#### Chứng chỉ {dev} · ngày sản xuất {day_date(day)}")
     st.code(f"tokenId = {hex(tid)}")
     if chain.explorer:
-        st.markdown(f"[Xem token này trên Sepolia Etherscan]({chain.explorer}/token/{chain.certs.address}?a={tid}) · "
-                    f"giao dịch phát hành {tx_link(iss['tx'])}")
+        st.markdown(f"[Xem token này trên Sepolia Etherscan]({chain.explorer}/token/{chain.certs.address}?a={tid})")
     steps = []
     if reg:
-        steps.append(("Đăng ký thiết bị", f"{cp}, {reg['capacityW'] / 1000:.0f} kW, issuer {name_of(reg['issuer'])},"
-                      f" hiệu lực từ {day_date(int(reg['effectiveDay']))}", reg["block"]))
+        steps.append((reg["block"], "Đăng ký thiết bị", f"{cp}, {reg['capacityW'] / 1000:.0f} kW, issuer "
+                      f"{name_of(reg['issuer'])}, hiệu lực từ {day_date(int(reg['effectiveDay']))}", reg["tx"]))
     key, lot = lot_of(cp, day)
     if lot:
-        steps.append(("Bằng chứng của lô", f"O1 = {lot['o1Wh'] / 1000:,.1f} kWh; cờ lớp B: {flags_text(int(lot['flags']))}",
-                      lot["block"]))
+        steps.append((lot["block"], "Bằng chứng của lô", f"O1 = {lot['o1Wh'] / 1000:,.1f} kWh; cờ lớp B: "
+                      f"{flags_text(int(lot['flags']))}", lot["tx"]))
     for e in ev["LotResolved"]:
         if bytes(e["lotKey"]) == key:
-            steps.append(("Production Auditor", "duyệt" if e["approved"] else "bác", e["block"]))
-    steps.append(("Phát hành (Issued)", f"{iss['wh'] / 1000:,.1f} kWh cho {name_of(iss['to'])}, yêu cầu {s32(iss['reqId'])}",
-                  iss["block"]))
+            steps.append((e["block"], "Production Auditor", "duyệt" if e["approved"] else "bác", e["tx"]))
+    steps.append((iss["block"], "Phát hành (Issued)", f"{iss['wh'] / 1000:,.1f} kWh cho {name_of(iss['to'])}, yêu cầu "
+                  f"{s32(iss['reqId'])}", iss["tx"]))
     for e in ev["TransferSingle"]:
         if int(e["id"]) == tid and e["from"] != ZERO and e["to"] != ZERO:
-            steps.append(("Chuyển nhượng", f"{name_of(e['from'])} → {name_of(e['to'])}: {e['value'] / 1000:,.1f} kWh",
-                          e["block"]))
+            steps.append((e["block"], "Chuyển nhượng", f"{name_of(e['from'])} → {name_of(e['to'])}: "
+                          f"{e['value'] / 1000:,.1f} kWh", e["tx"]))
     for e in ev["Suspended"]:
         if int(e["tokenId"]) == tid:
-            steps.append(("Code Manager: " + ("tạm khóa" if e["active"] else "mở khóa"), e["reason"], e["block"]))
+            steps.append((e["block"], "Code Manager: " + ("tạm khóa" if e["active"] else "mở khóa"), e["reason"], e["tx"]))
     for e in ev["Withdrawn"]:
         if int(e["tokenId"]) == tid:
-            steps.append(("Code Manager: rút", f"{e['wh'] / 1000:,.1f} kWh – {e['reason']}", e["block"]))
+            steps.append((e["block"], "Code Manager: rút", f"{e['wh'] / 1000:,.1f} kWh – {e['reason']}", e["tx"]))
     for e in ev["Retired"]:
         if int(e["tokenId"]) == tid:
-            steps.append(("Retire", f"{e['wh'] / 1000:,.1f} kWh bởi {name_of(e['holder'])}; thụ hưởng: {e['beneficiary']}",
-                          e["block"]))
-    st.dataframe(pd.DataFrame(sorted(steps, key=lambda s: s[2]), columns=["bước", "chi tiết", "block"]),
-                 hide_index=True, use_container_width=True)
+            steps.append((e["block"], "Retire", f"{e['wh'] / 1000:,.1f} kWh bởi {name_of(e['holder'])}; thụ hưởng: "
+                          f"{e['beneficiary']}", e["tx"]))
+    show(pd.DataFrame([{"thời điểm": when(b), "bước": s, "chi tiết": d, "giao dịch": tx_url(h) or h[:18] + "…"}
+                       for b, s, d, h in sorted(steps, key=lambda x: x[0])]))
     if lot:
         with st.expander("Bằng chứng của lô (4 báo cáo oracle, file gốc, biểu đồ)"):
             evidence_block(key, lot)
@@ -377,11 +531,11 @@ def statement(e: dict) -> None:
         name_of(e["holder"]), e["beneficiary"], e["purpose"], e["consumptionLocation"], e["reportingPeriod"],
         f"{e['wh'] / 1000:,.3f} kWh",
         f"{s32(iss['deviceId'])}, ngày {day_date(int(iss['day']))}" if iss else "—",
-        hex(tid), f"block {e['block']}, tx {e['tx']}"]},
+        hex(tid), when(e["block"]), e["tx"]]},
         index=["Người retire", "Người thụ hưởng", "Mục đích", "Nơi tiêu thụ", "Kỳ báo cáo", "Lượng",
-               "Nguồn (thiết bị, ngày sản xuất)", "tokenId", "Bằng chứng on-chain"]))
+               "Nguồn (thiết bị, ngày sản xuất)", "tokenId", "Thời điểm retire", "Giao dịch"]))
     if chain.explorer:
-        st.markdown(f"Giao dịch retire trên Etherscan: {tx_link(e['tx'])}")
+        st.markdown(f"[Xem giao dịch retire trên Etherscan]({tx_url(e['tx'])})")
     st.caption("Tuyên bố không sửa được và không đảo ngược được (I-REC §10); phần chứng chỉ được retire đã bị đốt.")
 
 
@@ -389,11 +543,12 @@ def transfer_and_retire(holder_role: str, row: pd.Series, others: list[str]) -> 
     """Hai form thao tác trên một chứng chỉ đang giữ: chuyển nhượng và retire."""
     tid, have = int(row["tokenId"]), float(row["đang giữ (kWh)"])
     locked = row["trạng thái"] == "tạm khóa"
+    st.markdown(f"#### Thao tác với chứng chỉ {row['thiết bị']} · {row['ngày sản xuất']} (đang giữ {have:,.1f} kWh)")
     if locked:
         st.warning("Chứng chỉ đang bị Code Manager tạm khóa: không chuyển nhượng, không retire được (I-REC §11).")
     c1, c2 = st.columns(2)
     with c1.form(f"tr-{holder_role}-{tid}"):
-        st.markdown("**Chuyển nhượng**")
+        st.markdown("**Chuyển nhượng** (`safeTransferFrom` của ERC-1155; thanh toán nằm ngoài hệ thống)")
         to = st.selectbox("Người nhận", others)
         kwh = st.number_input("Lượng (kWh)", min_value=0.001, max_value=have, value=have, step=1.0, format="%.3f")
         if st.form_submit_button("Chuyển", disabled=locked):
@@ -401,11 +556,11 @@ def transfer_and_retire(holder_role: str, row: pd.Series, others: list[str]) -> 
                                                         int(round(kwh * 1000)), b""),
                  holder_role, f"Đã chuyển {kwh:,.3f} kWh cho {to}")
     with c2.form(f"rt-{holder_role}-{tid}"):
-        st.markdown("**Retire (sử dụng chứng chỉ)**")
+        st.markdown("**Retire** (sử dụng chứng chỉ để tuyên bố điện tái tạo; không đảo ngược)")
         ben = st.text_input("Người thụ hưởng", f"{holder_role} (ESG)")
         purpose = st.text_input("Mục đích", "Scope 2")
         loc = st.text_input("Nơi tiêu thụ", "California, US")
-        period = st.text_input("Kỳ báo cáo", str(row["ngày sản xuất"].year))
+        period = st.text_input("Kỳ báo cáo", str(row["ngày sản xuất"])[:4])
         kwh_r = st.number_input("Lượng (kWh)", min_value=0.001, max_value=have, value=have, step=1.0, format="%.3f",
                                 key=f"rtk-{tid}")
         if st.form_submit_button("Retire", disabled=locked):
@@ -424,7 +579,8 @@ if chain.public:
     st.sidebar.info("Sepolia: giao dịch ký tại máy bằng khóa suy ra từ TESTNET_MNEMONIC (contracts/.env); mỗi giao "
                     "dịch tốn ETH test và ghi công khai.")
 else:
-    st.sidebar.info("Demo: giao dịch ký bằng tài khoản mở khóa của node Hardhat. Thực tế mỗi bên ký bằng ví riêng.")
+    st.sidebar.info("Demo: giao dịch ký bằng tài khoản mở khóa của node Hardhat; thời điểm theo đồng hồ mô phỏng. "
+                    "Thực tế mỗi bên ký bằng ví riêng.")
 if "flash" in st.session_state:
     kind, msg = st.session_state.pop("flash")
     (st.success if kind == "success" else st.error)(msg)
@@ -434,22 +590,26 @@ if role == "Công khai":
     st.title("Registry chứng chỉ I-REC – điện mặt trời")
     sec = section(["Tổng quan", "Tra chứng chỉ", "Nhật ký công khai", "Lineage completeness"], "pub-sec")
     if sec == "Tổng quan":
-        issued = pd.DataFrame(ev["Issued"])
-        retired = pd.DataFrame(ev["Retired"])
+        issued = sum(e["wh"] for e in ev["Issued"])
+        retired = sum(e["wh"] for e in ev["Retired"])
         c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("MWh đã phát hành", f"{issued['wh'].sum() / 1e6:,.2f}" if len(issued) else "0")
-        c2.metric("MWh đã retire", f"{retired['wh'].sum() / 1e6:,.2f}" if len(retired) else "0")
-        c3.metric("Yêu cầu bị REJECT", len(ev["IssueRejected"]))
-        c4.metric("Lô REVIEW", len(ev["LotReview"]))
-        c5.metric("Thao tác Code Manager", len(ev["Suspended"]) + len(ev["Withdrawn"]))
-        if len(issued):
-            daily = issued.assign(ngay=[day_date(int(d)).isoformat() for d in issued["day"]]).groupby("ngay")["wh"].sum() / 1e6
-            st.altair_chart(alt.Chart(daily.reset_index().rename(columns={"wh": "MWh"})).mark_bar(
-                color="#2a78d6", cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
-                x=alt.X("ngay:O", title="Ngày sản xuất", axis=alt.Axis(labelAngle=-45)),
-                y=alt.Y("MWh:Q", title="MWh phát hành"),
-                tooltip=[alt.Tooltip("ngay:O", title="Ngày"), alt.Tooltip("MWh:Q", format=".3f")]),
-                use_container_width=True)
+        c1.metric("Đã phát hành", mwh(issued))
+        c2.metric("Đã retire", mwh(retired))
+        c3.metric("Yêu cầu bị từ chối", len(ev["IssueRejected"]))
+        c4.metric("Lô bị REVIEW", len(ev["LotReview"]))
+        c5.metric("Code Manager", f"{len(ev['Suspended']) + len(ev['Withdrawn'])} thao tác")
+        prod = production_by_day(CP)
+        if len(prod):
+            long = prod.melt(id_vars="ngày sản xuất", value_vars=["công tơ O1 (kWh)", "đã phát hành (kWh)"],
+                             var_name="loại", value_name="kWh")
+            long["MWh"] = long["kWh"] / 1000
+            long["loại"] = long["loại"].map({"công tơ O1 (kWh)": "sản lượng công tơ", "đã phát hành (kWh)": "đã phát hành"})
+            st.altair_chart(alt.Chart(long).mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3).encode(
+                x=alt.X("ngày sản xuất:O", title="Ngày sản xuất", axis=alt.Axis(labelAngle=-45)),
+                xOffset="loại:N", y=alt.Y("MWh:Q", title="MWh"),
+                color=alt.Color("loại:N", scale=alt.Scale(range=["#2a78d6", "#eb6834"]),
+                                legend=alt.Legend(orient="top", title=None)),
+                tooltip=["ngày sản xuất", "loại", alt.Tooltip("MWh:Q", format=".3f")]), use_container_width=True)
     elif sec == "Tra chứng chỉ":
         st.caption("Bấm vào một dòng để xem chuỗi truy vết của chứng chỉ.")
         certs = certificates()
@@ -457,49 +617,104 @@ if role == "Công khai":
         if i is not None:
             certificate_detail(int(certs.iloc[i]["tokenId"]))
     elif sec == "Nhật ký công khai":
-        st.write("**Yêu cầu bị REJECT** (lý do lưu on-chain, I-REC §8.7)")
-        st.dataframe(pd.DataFrame([{"yêu cầu": s32(e["reqId"]), "thiết bị": s32(e["deviceId"]),
-                                    "ngày": day_date(int(e["day"])), "lý do": REASONS[int(e["reason"])].value,
-                                    "block": e["block"]} for e in ev["IssueRejected"]]),
-                     hide_index=True, use_container_width=True)
-        st.write("**Thao tác của Code Manager** (I-REC §11; luôn công khai, kèm lý do)")
-        cm = [{"thao tác": "tạm khóa" if e["active"] else "mở khóa", "tokenId": hex(int(e["tokenId"]))[:14] + "…",
-               "lượng (kWh)": None, "lý do": e["reason"], "block": e["block"]} for e in ev["Suspended"]]
-        cm += [{"thao tác": "rút", "tokenId": hex(int(e["tokenId"]))[:14] + "…", "lượng (kWh)": e["wh"] / 1000,
-                "lý do": e["reason"], "block": e["block"]} for e in ev["Withdrawn"]]
-        st.dataframe(pd.DataFrame(cm), hide_index=True, use_container_width=True)
-        st.write("**Phân xử của Production Auditor**")
-        st.dataframe(pd.DataFrame([{"ngày của lô": day_date(int(next(x["day"] for x in ev["LotEvidenced"]
-                                                                     if bytes(x["lotKey"]) == bytes(e["lotKey"])))),
-                                    "kết quả": "duyệt" if e["approved"] else "bác",
-                                    "auditor": name_of(e["auditor"]), "block": e["block"]}
-                                   for e in ev["LotResolved"]]), hide_index=True, use_container_width=True)
+        st.markdown("**Yêu cầu bị từ chối** (lý do lưu on-chain, I-REC §8.7)")
+        show(pd.DataFrame([{"thời điểm": when(e["block"]), "yêu cầu": s32(e["reqId"]), "thiết bị": s32(e["deviceId"]),
+                            "ngày sản xuất": day_date(int(e["day"])).isoformat(), "lý do": reason_of(e),
+                            "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"}
+                           for e in sorted(ev["IssueRejected"], key=lambda x: -x["block"])]))
+        st.markdown("**Thao tác của Code Manager** (I-REC §11; luôn công khai, kèm lý do)")
+        cmap = cert_of()
+        cm = [{"thời điểm": when(e["block"]), "thao tác": "tạm khóa" if e["active"] else "mở khóa",
+               "chứng chỉ": " · ".join(map(str, cmap.get(int(e["tokenId"]), ("?", "")))), "lượng (kWh)": None,
+               "lý do": e["reason"], "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"} for e in ev["Suspended"]]
+        cm += [{"thời điểm": when(e["block"]), "thao tác": "rút",
+                "chứng chỉ": " · ".join(map(str, cmap.get(int(e["tokenId"]), ("?", "")))), "lượng (kWh)": e["wh"] / 1000,
+                "lý do": e["reason"], "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"} for e in ev["Withdrawn"]]
+        show(pd.DataFrame(cm))
+        st.markdown("**Phân xử của Production Auditor**")
+        lots = {bytes(x["lotKey"]): x for x in ev["LotEvidenced"]}
+        show(pd.DataFrame([{"thời điểm": when(e["block"]),
+                            "ngày sản xuất của lô": day_date(int(lots[bytes(e["lotKey"])]["day"])).isoformat(),
+                            "kết quả": "duyệt" if e["approved"] else "bác", "auditor": name_of(e["auditor"]),
+                            "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"} for e in ev["LotResolved"]]))
     else:
         lin = lineage(chain, chain.store)
         st.metric("Lineage completeness", f"{lin['complete'].mean():.1%}" if len(lin) else "—",
                   help="% chứng chỉ dựng lại được đủ chuỗi chỉ từ event on-chain và kho file")
-        st.dataframe(lin, hide_index=True, use_container_width=True)
+        if len(lin):
+            lin = lin.rename(columns={"device": "thiết bị", "registered": "đã đăng ký", "lot_evidence": "có bằng chứng",
+                                      "files_verified": "file khớp hash", "review_trail": "dấu vết REVIEW",
+                                      "supply_consistent": "số dư khớp", "transfers": "số lần chuyển",
+                                      "retired_wh": "đã retire (Wh)", "withdrawn_wh": "đã rút (Wh)",
+                                      "complete": "đủ chuỗi"})
+            lin["ngày sản xuất"] = [day_date(int(d)).isoformat() for d in lin.pop("day")]
+            lin["mã"] = lin.pop("token_id").str[:12] + "…"
+            show(lin[["mã", "thiết bị", "ngày sản xuất", "đã đăng ký", "có bằng chứng", "file khớp hash",
+                      "dấu vết REVIEW", "số dư khớp", "số lần chuyển", "đã retire (Wh)", "đã rút (Wh)", "đủ chuỗi"]])
 
 # ---------------------------------------------------------------------- nhà máy
 elif role == "Nhà máy":
-    st.title("Nhà máy · CP-1")
+    st.title(f"Nhà máy · {CP}")
     st.caption("Chứng chỉ được MINT thẳng vào địa chỉ của nhà máy khi lô qua lớp A và lớp B. Nhà máy bán cho người mua "
                "bằng cách chuyển nhượng (thanh toán nằm ngoài hệ thống), hoặc tự retire nếu tự dùng điện.")
-    mine = holdings(chain.dep["roles"]["plant"])
-    sent = [e for e in ev["TransferSingle"] if e["from"] == chain.dep["roles"]["plant"] and e["to"] != ZERO]
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Đang giữ", f"{mine['đang giữ (kWh)'].sum() / 1000:,.2f} MWh" if len(mine) else "0")
-    c2.metric("Đã chuyển cho người mua", f"{sum(e['value'] for e in sent) / 1e6:,.2f} MWh")
-    held = [r for r in chain.dep.get("held_requests", [])
-            if chain.gate.functions.lotState(lot_of("CP-1", r["day"])[0]).call()[4] == 2]  # lô còn REVIEW
-    c3.metric("Yêu cầu đang chờ auditor", len(held))
-    st.subheader("Chứng chỉ đang giữ")
-    st.caption("Bấm vào một dòng để xem chi tiết, chuyển nhượng hoặc retire.")
-    i = pick(mine, "plant-certs")
-    if i is not None:
-        row = mine.iloc[i]
-        transfer_and_retire("plant", row, ["buyer1", "buyer2", "buyer3"])
-        certificate_detail(int(row["tokenId"]))
+    prod = production_by_day(CP)
+    mine = holdings(PLANT)
+    sent = transfers(PLANT, outgoing=True)
+    pending = requests_of_cp(CP)
+    n_held = int((pending["kết cục"] == "bị giữ (chờ auditor)").sum()) if len(pending) else 0
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Sản lượng công tơ", mwh(prod["công tơ O1 (kWh)"].sum() * 1000) if len(prod) else "0")
+    c2.metric("Đã phát hành", mwh(prod["đã phát hành (kWh)"].sum() * 1000) if len(prod) else "0")
+    c3.metric("Đang giữ", mwh(mine["đang giữ (kWh)"].sum() * 1000) if len(mine) else "0")
+    c4.metric("Đã chuyển nhượng", mwh(sent["lượng (kWh)"].sum() * 1000) if len(sent) else "0")
+    c5.metric("Chờ auditor", f"{n_held} yêu cầu")
+    sec = section(["Sản xuất theo ngày", "Chứng chỉ đang giữ", "Bị từ chối / bị giữ", "Đã chuyển nhượng"], "plant-sec")
+    if sec == "Sản xuất theo ngày":
+        st.caption("Mỗi dòng là một ngày sản xuất của cả nhà máy (một lô). Bấm vào một ngày để xem số liệu công tơ, "
+                   "inverter, bức xạ và kết cục của từng thiết bị.")
+        i = pick(prod, "plant-days", hide=("day",))
+        if i is not None:
+            d = int(prod.iloc[i]["day"])
+            key, lot = lot_of(CP, d)
+            st.markdown(f"#### Ngày sản xuất {day_date(d)}")
+            held_info = {r["req_id"]: r for r in chain.dep.get("held_requests", [])}
+            rows = [{"thiết bị": s32(e["deviceId"]), "kết cục": "đã phát hành", "lượng (kWh)": e["wh"] / 1000,
+                     "lý do": "", "thời điểm": when(e["block"]), "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"}
+                    for e in ev["Issued"] if int(e["day"]) == d]
+            rows += [{"thiết bị": s32(e["deviceId"]), "kết cục": "bị từ chối", "lượng (kWh)": None,
+                      "lý do": reason_of(e), "thời điểm": when(e["block"]),
+                      "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"}
+                     for e in ev["IssueRejected"] if int(e["day"]) == d]
+            done = {(r["thiết bị"]) for r in rows if r["kết cục"] == "đã phát hành"}
+            rows += [{"thiết bị": held_info[s32(e["reqId"])]["device"], "kết cục": "bị giữ (chờ auditor)",
+                      "lượng (kWh)": held_info[s32(e["reqId"])]["wh"] / 1000, "lý do": "lô bị lớp B đánh dấu",
+                      "thời điểm": when(e["block"]), "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"}
+                     for e in ev["IssueHeld"] if bytes(e["lotKey"]) == key and s32(e["reqId"]) in held_info
+                     and held_info[s32(e["reqId"])]["device"] not in done]
+            day_df = pd.DataFrame(rows).sort_values(["thiết bị", "thời điểm"]) if rows else pd.DataFrame()
+            if len(day_df):  # yêu cầu bị từ chối không có lượng on-chain: hiện "—" thay vì "None"
+                day_df["lượng"] = [f"{v:,.1f} kWh" if pd.notna(v) else "—" for v in day_df.pop("lượng (kWh)")]
+                day_df = day_df[["thiết bị", "kết cục", "lượng", "lý do", "thời điểm", "giao dịch"]]
+            show(day_df)
+            if lot:
+                evidence_block(key, lot)
+    elif sec == "Chứng chỉ đang giữ":
+        st.caption("Bấm vào một dòng để chuyển nhượng, retire, hoặc xem chuỗi truy vết.")
+        i = pick(mine, "plant-certs")
+        if i is not None:
+            row = mine.iloc[i]
+            transfer_and_retire("plant", row, ["buyer1", "buyer2", "buyer3"])
+            certificate_detail(int(row["tokenId"]))
+    elif sec == "Bị từ chối / bị giữ":
+        st.caption("Mọi yêu cầu phát hành tại CP này bị lớp A từ chối (kèm lý do on-chain) hoặc đang bị giữ chờ "
+                   "auditor. Cột issuer cho biết ai gửi: yêu cầu của thiết bị lạ cùng CP (ví dụ X-D4a) cũng hiện ở đây.")
+        show(pending)
+    else:
+        st.caption("Nhà máy chuyển chứng chỉ cho người mua ở mục \"Chứng chỉ đang giữ\" (chọn chứng chỉ → form Chuyển "
+                   "nhượng). Mỗi lần chuyển là một giao dịch ERC-1155 công khai.")
+        i = pick(sent, "plant-sent")
+        if i is not None:
+            certificate_detail(int(sent.iloc[i]["tokenId"]))
 
 # ---------------------------------------------------------------------- người mua
 elif role == "Người mua":
@@ -508,21 +723,41 @@ elif role == "Người mua":
     st.caption("Người mua nhận chứng chỉ qua chuyển nhượng, có thể chuyển tiếp, và retire khi dùng để tuyên bố "
                "điện tái tạo. Retire ghi người thụ hưởng, mục đích, nơi tiêu thụ, kỳ báo cáo; không đảo ngược được.")
     addr = chain.dep["roles"][buyer]
-    sec = section(["Chứng chỉ đang giữ", "Tuyên bố đã retire"], f"{buyer}-sec")
+    mine = holdings(addr)
+    got = transfers(addr, outgoing=False)
+    mine_r = sorted((e for e in ev["Retired"] if e["holder"] == addr), key=lambda e: -e["block"])
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Đang giữ", mwh(mine["đang giữ (kWh)"].sum() * 1000) if len(mine) else "0")
+    c2.metric("Đã nhận", mwh(got["lượng (kWh)"].sum() * 1000) if len(got) else "0")
+    c3.metric("Đã retire", mwh(sum(e["wh"] for e in mine_r)))
+    sec = section(["Chứng chỉ đang giữ", "Chứng chỉ trên hệ thống", "Lịch sử nhận", "Tuyên bố đã retire"],
+                  f"{buyer}-sec")
     if sec == "Chứng chỉ đang giữ":
-        mine = holdings(addr)
-        st.metric("Đang giữ", f"{mine['đang giữ (kWh)'].sum() / 1000:,.2f} MWh" if len(mine) else "0")
         i = pick(mine, f"{buyer}-certs")
         if i is not None:
             row = mine.iloc[i]
             transfer_and_retire(buyer, row, [b for b in ("buyer1", "buyer2", "buyer3") if b != buyer])
             certificate_detail(int(row["tokenId"]))
+    elif sec == "Chứng chỉ trên hệ thống":
+        st.caption("Mọi chứng chỉ đã phát hành. Cột \"nhà máy còn giữ\" là lượng chưa bán; muốn mua thì liên hệ nhà máy "
+                   "(thanh toán ngoài hệ thống), nhà máy chuyển nhượng sang tài khoản của bạn.")
+        allc = balances(balances(certificates(), PLANT, "nhà máy còn giữ (kWh)"), addr, "bạn đang giữ (kWh)", 7)
+        allc = allc.drop(columns=["CP", "mã"]) if len(allc) else allc
+        only = st.checkbox("Chỉ hiện chứng chỉ nhà máy còn giữ", value=False)
+        if only and len(allc):
+            allc = allc[allc["nhà máy còn giữ (kWh)"] > 0].reset_index(drop=True)
+        i = pick(allc, f"{buyer}-all")
+        if i is not None:
+            certificate_detail(int(allc.iloc[i]["tokenId"]))
+    elif sec == "Lịch sử nhận":
+        st.caption("Các lần chứng chỉ được chuyển vào tài khoản này (từ nhà máy hoặc người mua khác).")
+        i = pick(got, f"{buyer}-got")
+        if i is not None:
+            certificate_detail(int(got.iloc[i]["tokenId"]))
     else:
-        mine_r = sorted((e for e in ev["Retired"] if e["holder"] == addr), key=lambda e: -e["block"])
-        st.metric("Đã retire", f"{sum(e['wh'] for e in mine_r) / 1e6:,.2f} MWh")
-        table = pd.DataFrame([{"tokenId": hex(int(e["tokenId"]))[:14] + "…", "lượng (kWh)": e["wh"] / 1000,
-                               "thụ hưởng": e["beneficiary"], "mục đích": e["purpose"], "kỳ": e["reportingPeriod"],
-                               "block": e["block"]} for e in mine_r])
+        table = pd.DataFrame([{"thời điểm": when(e["block"]), "chứng chỉ": " · ".join(map(str, cert_of().get(
+            int(e["tokenId"]), ("?", "")))), "lượng (kWh)": e["wh"] / 1000, "thụ hưởng": e["beneficiary"],
+            "mục đích": e["purpose"], "kỳ": e["reportingPeriod"]} for e in mine_r])
         i = pick(table, f"{buyer}-stmts")
         if i is not None:
             statement(mine_r[i])
@@ -536,39 +771,38 @@ elif role == "Issuer":
     for r in chain.dep.get("held_requests", []):
         if r["issuer"] != issuer:
             continue
-        key, _ = lot_of("CP-1", r["day"])
+        key, _ = lot_of(CP, r["day"])
         status = chain.gate.functions.lotState(key).call()[4]
         done = chain.certs.functions.keyUsed(b32(r["device"]), r["day"]).call()
         rows.append({**r, "lô": STATUS[status], "đã phát hành": done})
     df = pd.DataFrame(rows)
+    st.subheader("Yêu cầu bị giữ")
     if df.empty:
         st.info("Không có yêu cầu nào bị giữ.")
     else:
-        st.dataframe(pd.DataFrame({"yêu cầu": df["req_id"], "thiết bị": df["device"],
-                                   "ngày": [day_date(d) for d in df["day"]], "lượng (kWh)": df["wh"] / 1000,
-                                   "trạng thái lô": df["lô"], "đã phát hành": df["đã phát hành"]}),
-                     hide_index=True, use_container_width=True)
+        show(pd.DataFrame({"yêu cầu": df["req_id"], "thiết bị": df["device"],
+                           "ngày sản xuất": [day_date(d).isoformat() for d in df["day"]],
+                           "lượng (kWh)": df["wh"] / 1000, "trạng thái lô": df["lô"], "đã phát hành": df["đã phát hành"]}))
         ready = df[(df["lô"] == "đã duyệt") & ~df["đã phát hành"]]
         if st.button(f"Gửi lại {len(ready)} yêu cầu của các lô đã duyệt", disabled=ready.empty):
-            for r in ready.itertuples():
-                transact(chain.gate.functions.issue(b32(r.req_id[:31]), b32(r.device), r.day, [int(r.wh)]), issuer)
-            st.session_state["flash"] = ("success", f"Đã gửi lại {len(ready)} yêu cầu; xem kết quả ở trang Công khai.")
+            with st.spinner("Đang gửi lại yêu cầu…"):
+                for r in ready.itertuples():
+                    transact(chain.gate.functions.issue(b32(r.req_id[:31]), b32(r.device), r.day, [int(r.wh)]), issuer)
+            st.session_state["flash"] = ("success", f"Đã gửi lại {len(ready)} yêu cầu; xem kết quả ở trang Nhà máy.")
             clear_selection()
-            st.cache_data.clear()
             st.rerun()
-    st.subheader("Yêu cầu bị REJECT của issuer này")
+    st.subheader("Yêu cầu bị từ chối của issuer này")
     devs = {s32(e["deviceId"]) for e in ev["DeviceRegistered"] if e["issuer"] == chain.dep["roles"][issuer]}
-    st.dataframe(pd.DataFrame([{"yêu cầu": s32(e["reqId"]), "thiết bị": s32(e["deviceId"]),
-                                "ngày": day_date(int(e["day"])), "lý do": REASONS[int(e["reason"])].value}
-                               for e in ev["IssueRejected"] if s32(e["deviceId"]) in devs]),
-                 hide_index=True, use_container_width=True)
+    show(pd.DataFrame([{"thời điểm": when(e["block"]), "yêu cầu": s32(e["reqId"]), "thiết bị": s32(e["deviceId"]),
+                        "ngày sản xuất": day_date(int(e["day"])).isoformat(), "lý do": reason_of(e),
+                        "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"}
+                       for e in sorted(ev["IssueRejected"], key=lambda x: -x["block"]) if s32(e["deviceId"]) in devs]))
 
 # ---------------------------------------------------------------------- production auditor
 else:
     st.title("Production Auditor")
     st.caption("Lớp B đánh dấu theo lô (cả nhà máy trong một ngày). Mọi chứng chỉ của lô bị giữ cho tới khi auditor "
                "phân xử; quyết định áp dụng cho cả lô. Khóa auditor chỉ đổi trạng thái lô, không mint được.")
-    sec = section(["Chứng chỉ chờ duyệt", "Đã phân xử", "Chứng chỉ bị tạm khóa"], "audit-sec")
     wh_of = {r["req_id"]: r for r in chain.dep.get("held_requests", [])}
     lots = {bytes(e["lotKey"]): e for e in ev["LotEvidenced"]}
     issued_by_req = {s32(e["reqId"]): e for e in ev["Issued"]}
@@ -583,21 +817,26 @@ else:
         r = wh_of.get(rid) or ({"device": s32(issued_by_req[rid]["deviceId"]), "wh": issued_by_req[rid]["wh"]}
                                if rid in issued_by_req else {})
         rows.append({"key": key, "yêu cầu": rid, "thiết bị": r.get("device", "—"),
-                     "ngày sản xuất": day_date(int(lot["day"])), "lượng xin (kWh)": r.get("wh", 0) / 1000,
+                     "ngày sản xuất": day_date(int(lot["day"])).isoformat(), "lượng xin (kWh)": r.get("wh", 0) / 1000,
                      "cờ lớp B": flags_text(int(lot["flags"])), "O1 của lô (kWh)": lot["o1Wh"] / 1000,
-                     "trạng thái lô": STATUS[status]})
+                     "trạng thái lô": STATUS[status], "bị giữ lúc": when(e["block"])})
     allq = pd.DataFrame(rows)
+    queue = allq[allq["trạng thái lô"] == "REVIEW"].reset_index(drop=True) if len(allq) else allq
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Chờ duyệt", f"{len(queue)} chứng chỉ")
+    c2.metric("Lô chờ phân xử", queue["key"].nunique() if len(queue) else 0)
+    c3.metric("Lô đã gửi", len(ev["LotEvidenced"]))
+    c4.metric("Yêu cầu bị từ chối", len(ev["IssueRejected"]))
+    sec = section(["Chứng chỉ chờ duyệt", "Mọi lô đã gửi", "Yêu cầu bị từ chối", "Đã phân xử",
+                   "Chứng chỉ bị tạm khóa"], "audit-sec")
     if sec == "Chứng chỉ chờ duyệt":
-        queue = allq[allq["trạng thái lô"] == "REVIEW"].reset_index(drop=True) if len(allq) else allq
-        n_lots = queue["key"].nunique() if len(queue) else 0
-        st.write(f"**{len(queue)} chứng chỉ chờ phát hành, thuộc {n_lots} lô đang chờ phân xử.** "
-                 "Bấm vào một dòng để xem chi tiết.")
+        st.caption("Bấm vào một dòng để xem chi tiết và phân xử.")
         i = pick(queue, "audit-queue", hide=("key",))
         if i is not None:
             row = queue.iloc[i]
             key = row["key"]
             lot = lots[key]
-            st.markdown(f"#### {row['yêu cầu']} · thiết bị {row['thiết bị']} · {row['ngày sản xuất']}")
+            st.markdown(f"#### {row['yêu cầu']} · thiết bị {row['thiết bị']} · ngày sản xuất {row['ngày sản xuất']}")
             st.write(f"Chứng chỉ này xin **{row['lượng xin (kWh)']:,.1f} kWh**. Cả lô có "
                      f"{int((queue['key'] == key).sum())} chứng chỉ chờ, tổng "
                      f"{queue.loc[queue['key'] == key, 'lượng xin (kWh)'].sum():,.1f} kWh.")
@@ -613,6 +852,27 @@ else:
                          ("Đã duyệt" if approve else "Đã bác") + " lô ngày " + str(row["ngày sản xuất"]) +
                          (". Issuer gửi lại yêu cầu để được MINT." if approve else
                           ". Mọi yêu cầu của lô sẽ bị REJECT (LOT_REJECTED)."))
+    elif sec == "Mọi lô đã gửi":
+        st.caption("Mọi bằng chứng của lô đã gửi lên chain, kể cả lô sạch. Bấm vào một lô để xem 4 báo cáo oracle và "
+                   "biểu đồ 15 phút.")
+        all_lots = pd.DataFrame([{"key": bytes(e["lotKey"]), "gửi lúc": when(e["block"]), "CP": s32(e["cpId"]),
+                                  "ngày sản xuất": day_date(int(e["day"])).isoformat(), "O1 (kWh)": e["o1Wh"] / 1000,
+                                  "cờ lớp B": flags_text(int(e["flags"])),
+                                  "trạng thái lô": STATUS[chain.gate.functions.lotState(bytes(e["lotKey"])).call()[4]],
+                                  "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"}
+                                 for e in sorted(ev["LotEvidenced"], key=lambda x: int(x["day"]))])
+        status_filter = st.multiselect("Lọc theo trạng thái lô", STATUS[1:], default=STATUS[1:])
+        if len(all_lots):
+            all_lots = all_lots[all_lots["trạng thái lô"].isin(status_filter)].reset_index(drop=True)
+        i = pick(all_lots, "audit-lots", hide=("key",))
+        if i is not None:
+            evidence_block(all_lots.iloc[i]["key"], lots[all_lots.iloc[i]["key"]])
+    elif sec == "Yêu cầu bị từ chối":
+        st.caption("Yêu cầu bị lớp A từ chối tự động (không qua auditor), kèm lý do lưu on-chain.")
+        show(pd.DataFrame([{"thời điểm": when(e["block"]), "yêu cầu": s32(e["reqId"]), "thiết bị": s32(e["deviceId"]),
+                            "ngày sản xuất": day_date(int(e["day"])).isoformat(), "lý do": reason_of(e),
+                            "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"}
+                           for e in sorted(ev["IssueRejected"], key=lambda x: -x["block"])]))
     elif sec == "Đã phân xử":
         done = allq[allq["trạng thái lô"] != "REVIEW"].reset_index(drop=True) if len(allq) else allq
         i = pick(done, "audit-done", hide=("key",))

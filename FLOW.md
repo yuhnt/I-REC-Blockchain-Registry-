@@ -10,7 +10,7 @@ Tài liệu thiết kế cho giai đoạn 3–5 (contract, lớp B, tích hợp,
 | **Issuer** (`issuerA`, `issuerB`) | Đăng ký thiết bị; gửi bằng chứng của lô; gửi yêu cầu phát hành | Khóa issuer, có trong allowlist lúc deploy |
 | **Oracle O1–O4** | Đo, đóng gói chuỗi 15 phút, ký báo cáo ngày | R1: khóa O1 thuộc điện lực. R2: khóa O1–O3 thuộc chủ dự án. O4 luôn thuộc issuer |
 | **Verifier** | Chạy lớp B (off-chain) trên 4 báo cáo của một lô; ký verdict | Khóa verifier, thuộc issuer |
-| **Production Auditor** | Phân xử lô REVIEW (duyệt hoặc bác); kiểm tra ngẫu nhiên p% số lô đã mint | Khóa auditor (on-chain chỉ dùng cho `resolveReview`) |
+| **Production Auditor** | Chứng chỉ chờ duyệt (bấm một dòng để xem chi tiết: lượng xin, cả lô, 4 báo cáo oracle có kiểm hash, cờ, reason code, biểu đồ O1–O2 và O3–O4); **mọi lô đã gửi**, kể cả lô sạch, lọc theo trạng thái; **yêu cầu bị lớp A từ chối** kèm lý do; lô đã phân xử; chứng chỉ đang bị tạm khóa | Duyệt hoặc bác **cả lô** (`resolveReview`, kèm hash của lý do) |
 | **Code Manager** | Tạm khóa / mở khóa / rút chứng chỉ chưa retire (I-REC §11) | Khóa riêng, tách khỏi mọi issuer |
 | **Bên mua** | Nhận chứng chỉ qua chuyển nhượng; retire khi dùng | Địa chỉ ví |
 | **Kho file off-chain** | Lưu chuỗi 15 phút, tên file = `data_root` | Không ký; ai cũng kiểm được bằng cách tính lại hash |
@@ -272,12 +272,12 @@ Mỗi vai một trang, chọn ở thanh bên. Trong demo, giao dịch được k
 | Vai | Xem | Làm |
 |---|---|---|
 | **Công khai** | Tổng quan (MWh phát hành và retire, số REJECT, REVIEW, thao tác Code Manager); bảng mọi chứng chỉ, bấm một dòng để xem chuỗi truy vết; nhật ký công khai (REJECT kèm lý do, Code Manager, phân xử của auditor); lineage completeness | — |
-| **Nhà máy** | Chứng chỉ đang giữ: được MINT thẳng vào địa chỉ nhà máy (`holderOf[CP]`) khi lô qua lớp A và lớp B; lượng đã chuyển; số yêu cầu đang chờ auditor | Chuyển nhượng cho người mua (`safeTransferFrom`; thanh toán nằm ngoài hệ thống); retire nếu tự dùng |
-| **Người mua** | Chứng chỉ đang giữ; các tuyên bố đã retire, mỗi tuyên bố dựng lại từ event `Retired` (người thụ hưởng, mục đích, nơi tiêu thụ, kỳ báo cáo, nguồn, tx) | Chuyển tiếp; retire (I-REC §10, không đảo ngược) |
+| **Nhà máy** | Tổng: sản lượng công tơ, đã phát hành, đang giữ, đã chuyển nhượng, số yêu cầu chờ auditor. **Sản xuất theo ngày**: công tơ O1, đã phát hành, số chứng chỉ, số yêu cầu bị từ chối, cờ và trạng thái lô; bấm một ngày để xem kết cục từng thiết bị (đã phát hành, bị từ chối kèm lý do, bị giữ), 4 báo cáo oracle và biểu đồ công tơ so với inverter, bức xạ tại chỗ so với vệ tinh. **Bị từ chối / bị giữ**: thời điểm, thiết bị, issuer, lý do. **Đã chuyển nhượng**: người nhận, chứng chỉ, lượng, thời điểm, giao dịch | Chuyển nhượng cho người mua (`safeTransferFrom`; thanh toán nằm ngoài hệ thống); retire nếu tự dùng |
+| **Người mua** | Chứng chỉ đang giữ; **chứng chỉ trên hệ thống** (lượng nhà máy còn giữ, có thể mua); **lịch sử nhận** (từ ai, khi nào, giao dịch); các tuyên bố đã retire, mỗi tuyên bố dựng lại từ event `Retired` | Chuyển tiếp; retire (I-REC §10, không đảo ngược) |
 | **Issuer** | Yêu cầu bị giữ vì lô REVIEW và trạng thái lô; yêu cầu bị REJECT kèm lý do | Gửi lại các yêu cầu của lô đã được duyệt |
 | **Production Auditor** | Bảng mọi chứng chỉ chờ phát hành đang bị giữ; bấm một dòng để xem chi tiết: lượng xin, cả lô, 4 báo cáo oracle (kiểm hash file gốc theo `data_root`), cờ, reason code (tỷ số nhất quán, trần), biểu đồ O1 so với O2 trong ngày. Có thêm mục lô đã phân xử và chứng chỉ đang bị tạm khóa | Duyệt hoặc bác **cả lô** (`resolveReview`, kèm hash của lý do) |
 
-Các bảng là bảng bấm chọn dòng; sau mỗi giao dịch, lựa chọn được xóa để không nhảy sang chứng chỉ hoặc lô khác.
+Các bảng là bảng bấm chọn dòng; sau mỗi giao dịch, lựa chọn được xóa để không nhảy sang chứng chỉ hoặc lô khác. Mọi bảng có cột thời điểm theo giờ nhà máy (Hardhat cục bộ: đồng hồ mô phỏng; Sepolia: giờ thật) và, trên Sepolia, liên kết giao dịch sang Etherscan. Lý do từ chối hiện cả mã on-chain lẫn giải thích. Số liệu từng inverter không lên chain; O2 là tổng 24 inverter.
 
 ## 13. Test kiểm luồng
 

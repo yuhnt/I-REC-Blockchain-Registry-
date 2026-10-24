@@ -8,9 +8,9 @@ Deploy ngày 2026-10-24, từ block 11981681 (chainId 11155111).
 
 | Contract | Địa chỉ | Mã nguồn |
 |---|---|---|
-| DeviceRegistry | [`0x33FE6c429CC760829485F67811bb80b304d12Cf4`](https://sepolia.etherscan.io/address/0x33FE6c429CC760829485F67811bb80b304d12Cf4) | chưa verify |
-| CertificateRegistry | [`0x2fc8481C363419CFa53dbC8BdBcF7956aF624462`](https://sepolia.etherscan.io/address/0x2fc8481C363419CFa53dbC8BdBcF7956aF624462) | chưa verify |
-| DecisionGate | [`0x905d8D925937F3b9F208366b677A9130552F66f7`](https://sepolia.etherscan.io/address/0x905d8D925937F3b9F208366b677A9130552F66f7) | chưa verify |
+| DeviceRegistry | [`0x33FE6c429CC760829485F67811bb80b304d12Cf4`](https://sepolia.etherscan.io/address/0x33FE6c429CC760829485F67811bb80b304d12Cf4) | đã verify |
+| CertificateRegistry | [`0x2fc8481C363419CFa53dbC8BdBcF7956aF624462`](https://sepolia.etherscan.io/address/0x2fc8481C363419CFa53dbC8BdBcF7956aF624462) | đã verify |
+| DecisionGate | [`0x905d8D925937F3b9F208366b677A9130552F66f7`](https://sepolia.etherscan.io/address/0x905d8D925937F3b9F208366b677A9130552F66f7) | đã verify |
 
 Chứng chỉ ERC-1155 (đơn vị Wh): [https://sepolia.etherscan.io/token/0x2fc8481C363419CFa53dbC8BdBcF7956aF624462](https://sepolia.etherscan.io/token/0x2fc8481C363419CFa53dbC8BdBcF7956aF624462). Tra một chứng chỉ: thêm `?a=<tokenId>`; tokenId = keccak256(abi.encode(deviceId, day)), có sẵn ở dashboard (tab Tra chứng chỉ).
 
@@ -27,7 +27,6 @@ Nạp ngày 2026-10-24: 3 ngày đầu của dòng hợp lệ (seed 101, cấu h
 - Lần nạp thứ hai: chữ ký EIP-712 của oracle và verifier dùng nhầm chainId 31337 (của Hardhat), nên mọi bằng chứng của lô bị revert. 32 yêu cầu phát hành bị REJECT với lý do `oracle` ở block 11981722–11981762; các event này vẫn công khai trên chain và không xóa được. Đã sửa: lấy chainId từ mạng đang kết nối.
 - Lần nạp thứ ba thành công: 18 chứng chỉ được MINT; D1 bị REJECT `key`, D4a bị REJECT `budget`; 2 lô chờ auditor; một lần tạm khóa và rút của Code Manager.
 - Gas trên Sepolia cao khoảng gấp đôi so với Hardhat cục bộ (15,9 triệu so với 6,7 triệu cho cùng phần demo), vì Sepolia hiện định giá lại việc ghi trạng thái mới. Bảng gas của E3 (RESULTS.md) đo trên Hardhat.
-- Mã nguồn chưa được verify trên Etherscan: contracts/.env chưa có ETHERSCAN_API_KEY. Có key thì chạy `python -m rec.experiments.testnet verify`.
 
 ## Địa chỉ các vai
 
