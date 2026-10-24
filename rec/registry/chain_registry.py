@@ -19,6 +19,7 @@ from pathlib import Path
 
 from eth_utils import keccak
 from web3 import Web3
+from web3.exceptions import ContractCustomError, ContractLogicError
 
 from rec import config
 from rec.oracles.signer import Signer, b32, hardhat_account, lot_key, report_struct, reports_hash, struct_hash, token_id
@@ -98,7 +99,7 @@ class ChainRegistry(Registry):
             self.gate = self._contract("DecisionGate", c["DecisionGate"])
         else:
             self._deploy()
-        self.signer = Signer(self.gate.address)
+        self.signer = Signer(self.gate.address, self.w3.eth.chain_id)  # domain EIP-712 theo đúng mạng đang dùng
         self._errors = self._error_selectors()
         self._topics = {name: keccak(text=sig) for name, sig in (
             ("Issued", "Issued(bytes32,uint256,bytes32,uint32,uint64,address)"),
@@ -370,8 +371,9 @@ class TestnetRegistry(ChainRegistry):
         t_send = time.perf_counter()
         try:
             rcpt = self._sign_and_send(fn, role)
-        except Exception as e:  # noqa: BLE001 – estimate_gas báo revert của contract
+        except (ContractLogicError, ContractCustomError) as e:  # contract revert, phát hiện ngay lúc ước lượng gas
             return None, self._decode_error(str(getattr(e, "data", "")) + " " + str(e))
+        # Lỗi khác (không đủ ETH, nonce, mạng) không phải quyết định của contract: để nổi lên, không ghi thành revert.
         self.lat_log.append((op, time.perf_counter() - t_send))
         if rcpt.status == 0:
             return None, "Revert"

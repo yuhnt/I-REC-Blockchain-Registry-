@@ -1,0 +1,3 @@
+# Không hiện traceback trên trang: lỗi RPC có thể chứa URL của nhà cung cấp (Alchemy đặt API key trong URL).
+[client]
+showErrorDetails = "none"

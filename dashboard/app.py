@@ -64,7 +64,8 @@ def flags_text(f: int) -> str:
 
 
 SOURCES = {"Hardhat cục bộ": ("demo", "deployment.json"), "Sepolia (testnet)": ("testnet", "deployment.json")}
-LOG_CHUNK = 2_000  # số block mỗi lần get_logs trên mạng công khai (nhà cung cấp RPC giới hạn khoảng block)
+LOG_CHUNK = 2_000  # số block mỗi lần eth_getLogs; tự hạ xuống LOG_CHUNK_MIN nếu nhà cung cấp RPC từ chối
+LOG_CHUNK_MIN = 10  # Alchemy gói miễn phí chỉ cho khoảng 10 block mỗi lần
 
 
 @st.cache_resource
@@ -92,30 +93,58 @@ def connect(source: str):
                            key_of=lambda role: hardhat_account(ROLES.index(role), mnemonic))
 
 
-def get_logs(contract, name: str, start: int, end: int) -> list:
-    """Event từ block `start`; trên mạng công khai đọc theo từng khúc để không vượt giới hạn của RPC."""
-    ev_ = getattr(contract.events, name)()
-    if not chain.public:
-        return ev_.get_logs(from_block=start)
-    out = []
-    for a in range(start, end + 1, LOG_CHUNK):
-        out += ev_.get_logs(from_block=a, to_block=min(a + LOG_CHUNK - 1, end))
-    return out
+def redact(text: str) -> str:
+    """Bỏ URL khỏi thông báo lỗi (URL của Alchemy chứa API key)."""
+    return re.sub(r"https?://\S+", "<RPC>", str(text))
 
 
-@st.cache_data(ttl=15, show_spinner=False)
+@st.cache_resource
+def log_store(source: str) -> dict:
+    """Log thô đã đọc của mỗi chain, cộng dồn qua các lần tải trang: chỉ đọc thêm block mới."""
+    return {"next": None, "chunk": LOG_CHUNK, "logs": []}
+
+
+def fetch_logs(source: str, latest: int) -> list:
+    """eth_getLogs cho cả 3 contract trong một lệnh mỗi khúc block; tự thu nhỏ khúc nếu RPC từ chối."""
+    store = log_store(source)
+    if store["next"] is None:
+        store["next"] = int(chain.dep.get("from_block", 0))
+    addrs = [chain.devices.address, chain.certs.address, chain.gate.address]
+    while store["next"] <= latest:
+        end = min(store["next"] + store["chunk"] - 1, latest)
+        try:
+            store["logs"] += chain.w3.eth.get_logs({"fromBlock": store["next"], "toBlock": end, "address": addrs})
+        except Exception:  # noqa: BLE001 – vượt giới hạn khoảng block của nhà cung cấp
+            if store["chunk"] > LOG_CHUNK_MIN:
+                store["chunk"] = LOG_CHUNK_MIN
+                continue
+            raise
+        store["next"] = end + 1
+    return store["logs"]
+
+
+EVENT_NAMES = {"gate": ["LotEvidenced", "LotReview", "LotResolved", "O1Conflict", "Issued", "IssueRejected",
+                         "IssueHeld"],
+               "certs": ["TransferSingle", "Retired", "Suspended", "Withdrawn"],
+               "devices": ["DeviceRegistered", "RegistrationTransferred", "RegistrationClosed"]}
+
+
 def load_events(source: str, block: int) -> dict:
-    """Mọi event cần cho dashboard; khóa cache theo số block để tự làm mới khi chain có giao dịch mới."""
-    ch = connect(source)
-    start = int(ch.dep.get("from_block", 0))
-    out = {}
-    for contract, names in ((ch.gate, ["LotEvidenced", "LotReview", "LotResolved", "O1Conflict", "Issued",
-                                       "IssueRejected", "IssueHeld"]),
-                            (ch.certs, ["TransferSingle", "Retired", "Suspended", "Withdrawn"]),
-                            (ch.devices, ["DeviceRegistered", "RegistrationTransferred", "RegistrationClosed"])):
-        for n in names:
-            out[n] = [dict(lg.args) | {"block": lg.blockNumber, "tx": "0x" + lg.transactionHash.hex().removeprefix("0x")}
-                      for lg in get_logs(contract, n, start, block)]
+    """Giải mã log thô thành event theo tên; mỗi event thêm block và tx."""
+    by_addr = {}
+    for attr, names in EVENT_NAMES.items():
+        contract = getattr(chain, attr)
+        by_addr[contract.address.lower()] = [(n, getattr(contract.events, n)()) for n in names]
+    out = {n: [] for names in EVENT_NAMES.values() for n in names}
+    for lg in fetch_logs(source, block):
+        for n, ev_ in by_addr.get(lg["address"].lower(), []):
+            try:
+                d = ev_.process_log(lg)
+            except Exception:  # noqa: BLE001 – log của event khác cùng contract
+                continue
+            out[n].append(dict(d.args) | {"block": d.blockNumber,
+                                          "tx": "0x" + bytes(d.transactionHash).hex()})
+            break
     return out
 
 
@@ -146,7 +175,7 @@ def send(fn, role: str, done: str) -> None:
         text = str(getattr(e, "data", "")) + " " + str(e)
         name = next((chain.errors[s.lower()] for s in re.findall(r"0x[0-9a-fA-F]{8}", text)
                      if s.lower() in chain.errors), None)
-        st.session_state["flash"] = ("error", f"Giao dịch bị contract từ chối: {name or text[:200]}")
+        st.session_state["flash"] = ("error", f"Giao dịch bị từ chối: {name or redact(text)[:200]}")
     clear_selection()
     st.cache_data.clear()
     st.rerun()
@@ -160,14 +189,22 @@ def clear_selection() -> None:
 
 available = [k for k, v in SOURCES.items() if config.resolve_path("artifacts").joinpath(*v).exists()]
 source = st.sidebar.selectbox("Chain", available or list(SOURCES))
-chain = connect(source) if available else None
-if chain is None or not chain.w3.is_connected():
+try:
+    chain = connect(source) if available else None
+    connected = chain is not None and chain.w3.is_connected()
+except Exception:  # noqa: BLE001
+    chain, connected = None, False
+if not connected:
     st.title("Registry chứng chỉ I-REC – điện mặt trời")
     st.error("Chưa kết nối được chain. Hardhat cục bộ: chạy `python -m rec.experiments.demo`. Sepolia: chạy "
              "`python -m rec.experiments.testnet deploy` rồi `demo`, và kiểm tra `contracts/.env`.")
     st.stop()
-block = chain.w3.eth.block_number
-ev = load_events(source, block)
+try:
+    block = chain.w3.eth.block_number
+    ev = load_events(source, block)
+except Exception as e:  # noqa: BLE001 – lỗi RPC: hiện thông báo đã bỏ URL, không hiện traceback
+    st.error(f"Lỗi khi đọc chain: {type(e).__name__}: {redact(e)[:300]}")
+    st.stop()
 addr_name = {v: k for k, v in chain.dep["roles"].items()}
 name_of = lambda a: addr_name.get(a, a[:10] + "…")  # noqa: E731
 

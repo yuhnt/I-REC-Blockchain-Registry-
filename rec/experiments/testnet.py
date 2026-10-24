@@ -111,12 +111,19 @@ def cmd_fund(env: dict[str, str]) -> int:
     fee = w3.eth.gas_price
     hashes = []
     for i, (role, a, value) in enumerate(plan):
-        tx = {"to": a, "value": value, "gas": 21_000, "maxFeePerGas": 2 * fee, "maxPriorityFeePerGas": max(fee // 10, 1),
+        # Ước lượng gas thay vì đặt cứng 21.000: chuyển ETH tới ví mới tinh có thể cần nhiều hơn tùy luật của mạng.
+        gas = int(w3.eth.estimate_gas({"from": deployer.address, "to": a, "value": value}) * 1.2)
+        tx = {"to": a, "value": value, "gas": gas, "maxFeePerGas": 2 * fee + 1, "maxPriorityFeePerGas": max(fee // 10, 1),
               "nonce": nonce + i, "chainId": w3.eth.chain_id, "type": 2}
         hashes.append((role, w3.eth.send_raw_transaction(deployer.sign_transaction(tx).raw_transaction)))
+    failed = []
     for role, h in hashes:
-        w3.eth.wait_for_transaction_receipt(h, timeout=600, poll_latency=2)
-        print(f"  {role:<12} {EXPLORER}/tx/0x{bytes(h).hex()}")
+        r = w3.eth.wait_for_transaction_receipt(h, timeout=600, poll_latency=2)
+        print(f"  {role:<12} {'ok   ' if r.status == 1 else 'LỖI  '} {EXPLORER}/tx/0x{bytes(h).hex()}")
+        if r.status != 1:
+            failed.append(role)
+    if failed:
+        raise SystemExit(f"giao dịch nạp thất bại cho: {', '.join(failed)}")
     return 0
 
 
@@ -215,6 +222,8 @@ def write_notes(dep: dict) -> Path:
                   "và rút của Code Manager.", "",
                   f"- Giao dịch: {d.get('transactions', '—')}, tổng gas {d.get('gas', 0):,}",
                   f"- Yêu cầu đang bị giữ chờ auditor: {len(dep.get('held_requests', []))}", ""]
+    if dep.get("notes"):
+        lines += ["## Ghi chú vận hành", ""] + [f"- {n}" for n in dep["notes"]] + [""]
     lines += ["## Địa chỉ các vai", "",
               "Suy ra từ mnemonic riêng của nhóm (không công bố). Oracle và verifier chỉ ký off-chain.", "",
               "| Vai | Địa chỉ |", "|---|---|"]
