@@ -131,7 +131,7 @@ Trình diễn trên testnet Sepolia (tùy chọn; thí nghiệm vẫn chạy tr�
 .venv/Scripts/python -m rec.experiments.testnet demo        # 3 ngày dữ liệu demo (khoảng 60 giao dịch, 15–20 phút)
 ```
 
-Sau đó mở dashboard và chọn chain "Sepolia (testnet)" ở thanh bên; mỗi chứng chỉ có liên kết sang Sepolia Etherscan.
+Sau đó mở dashboard và chọn chain "Sepolia (testnet)" ở thanh bên; mỗi chứng chỉ có liên kết sang Sepolia Etherscan. Các lệnh `deploy`, `verify`, `demo` tự ghi [docs/TESTNET.md](docs/TESTNET.md) (địa chỉ contract, block, liên kết Etherscan, tóm tắt demo; không có khóa hay URL RPC). Commit file này sau khi chạy.
 
 Sinh lại toàn bộ kết quả (dữ liệu → generator → E2 → E1 → parity → E3 → hình, khoảng 1 giờ), rồi so với manifest kết quả đã commit:
 

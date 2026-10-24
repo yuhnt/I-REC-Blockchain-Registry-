@@ -11,6 +11,7 @@ Các lệnh (chạy theo thứ tự; mọi lệnh gửi giao dịch đều tốn
   python -m rec.experiments.testnet verify        đăng mã nguồn lên Sepolia Etherscan (cần ETHERSCAN_API_KEY)
   python -m rec.experiments.testnet demo [--days 3]   nạp vài ngày dữ liệu demo (một lần cho mỗi lần deploy)
   python -m rec.experiments.testnet status        in địa chỉ contract và liên kết Etherscan
+deploy, verify, demo tự ghi docs/TESTNET.md (chỉ thông tin công khai) để commit cho nhóm.
 Sau đó: streamlit run dashboard/app.py, chọn chain "Sepolia" ở thanh bên.
 """
 from __future__ import annotations
@@ -19,6 +20,7 @@ import json
 import re
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
 from web3 import Web3
@@ -141,9 +143,10 @@ def cmd_deploy(env: dict[str, str], argv: list[str]) -> int:
     chain = TestnetRegistry(_plant(), env["SEPOLIA_RPC_URL"], env["TESTNET_MNEMONIC"])
     dep = {"network": "sepolia", "chain_id": SEPOLIA_CHAIN_ID, "explorer": EXPLORER, "from_block": chain.deploy_block,
            **deployment_info(chain), "deploy_args": {k: _jsonable(v) for k, v in chain.deploy_args.items()},
-           "store": str(config.resolve_path("artifacts") / "store"), "held_requests": []}
+           "store": str(config.resolve_path("artifacts") / "store"), "held_requests": [],
+           "deployed_at": date.today().isoformat()}
     dep_path().parent.mkdir(parents=True, exist_ok=True)
-    dep_path().write_text(json.dumps(dep, indent=2, ensure_ascii=False), encoding="utf-8")
+    _save(dep)
     return cmd_status(env)
 
 
@@ -155,8 +158,12 @@ def cmd_verify(env: dict[str, str]) -> int:
         args_file = dep_path().parent / f"args_{name}.js"
         args_file.write_text("module.exports = " + json.dumps(dep["deploy_args"][name]) + ";\n", encoding="utf-8")
         print(f"verify {name} …", flush=True)
-        subprocess.run(f'npx hardhat verify --network sepolia --constructor-args "{args_file}" {addr}', shell=True,
-                       cwd=contracts_dir())
+        res = subprocess.run(f'npx hardhat verify --network sepolia --constructor-args "{args_file}" {addr}',
+                             shell=True, cwd=contracts_dir(), capture_output=True, text=True)
+        text = res.stdout + res.stderr
+        print(text.strip()[-400:])
+        dep.setdefault("verified", {})[name] = res.returncode == 0 or "already verified" in text.lower()
+    _save(dep)
     return cmd_status(env)
 
 
@@ -171,10 +178,58 @@ def cmd_demo(env: dict[str, str], argv: list[str]) -> int:
     chain = TestnetRegistry(_plant(), env["SEPOLIA_RPC_URL"], env["TESTNET_MNEMONIC"], deployment=dep)
     print(f"nạp {days} ngày dữ liệu demo lên Sepolia (khoảng {days * 15 + 30} giao dịch)…", flush=True)
     extra = populate(chain, n_days=days, lots=("M2-k1", "honest"))
-    dep.update(extra, demo_loaded=True)
-    dep_path().write_text(json.dumps(dep, indent=2, ensure_ascii=False), encoding="utf-8")
-    print("tổng gas:", sum(g for _, g in chain.gas_log), "trên", len(chain.gas_log), "giao dịch")
+    gas = sum(g for _, g in chain.gas_log)
+    dep.update(extra, demo_loaded=True, demo_summary={"days": days, "transactions": len(chain.gas_log), "gas": gas,
+                                                      "loaded_at": date.today().isoformat()})
+    _save(dep)
+    print("tổng gas:", gas, "trên", len(chain.gas_log), "giao dịch")
     return cmd_status(env)
+
+
+def write_notes(dep: dict) -> Path:
+    """Ghi docs/TESTNET.md từ deployment.json: chỉ thông tin công khai (địa chỉ, block, tx, liên kết Etherscan).
+
+    Không ghi mnemonic, khóa riêng, URL RPC hay API key.
+    """
+    ex = dep.get("explorer", EXPLORER)
+    c = dep["contracts"]
+    lines = ["# Trình diễn trên testnet Sepolia", "",
+             "File này do `python -m rec.experiments.testnet` tự ghi sau mỗi lần `deploy`, `verify`, `demo`. "
+             "Chỉ chứa thông tin công khai trên chain. Thí nghiệm E1–E3 vẫn chạy trên Hardhat cục bộ "
+             "(RESULTS.md); Sepolia chỉ để tra cứu công khai.", "",
+             "## Contract", "",
+             f"Deploy ngày {dep.get('deployed_at', '—')}, từ block {dep['from_block']} (chainId {dep.get('chain_id')}).",
+             "", "| Contract | Địa chỉ | Mã nguồn |", "|---|---|---|"]
+    verified = dep.get("verified", {})
+    for name, addr in c.items():
+        mark = "đã verify" if verified.get(name) else "chưa verify"
+        lines.append(f"| {name} | [`{addr}`]({ex}/address/{addr}) | {mark} |")
+    lines += ["", f"Chứng chỉ ERC-1155 (đơn vị Wh): [{ex}/token/{c['CertificateRegistry']}]"
+                  f"({ex}/token/{c['CertificateRegistry']}). Tra một chứng chỉ: thêm `?a=<tokenId>`; tokenId = "
+                  "keccak256(abi.encode(deviceId, day)), có sẵn ở dashboard (tab Tra chứng chỉ).", ""]
+    if dep.get("demo_loaded"):
+        d = dep.get("demo_summary", {})
+        lines += ["## Dữ liệu demo", "",
+                  f"Nạp ngày {d.get('loaded_at', '—')}: {d.get('days', '—')} ngày đầu của dòng hợp lệ (seed 101, "
+                  "cấu hình Proposed), cùng D1 và D4a bị REJECT, các lô chờ Production Auditor, và một lần tạm khóa "
+                  "và rút của Code Manager.", "",
+                  f"- Giao dịch: {d.get('transactions', '—')}, tổng gas {d.get('gas', 0):,}",
+                  f"- Yêu cầu đang bị giữ chờ auditor: {len(dep.get('held_requests', []))}", ""]
+    lines += ["## Địa chỉ các vai", "",
+              "Suy ra từ mnemonic riêng của nhóm (không công bố). Oracle và verifier chỉ ký off-chain.", "",
+              "| Vai | Địa chỉ |", "|---|---|"]
+    lines += [f"| {role} | [`{a}`]({ex}/address/{a}) |" for role, a in dep["roles"].items()]
+    lines += ["", "## Chạy lại", "", "Xem README, mục trình diễn trên testnet Sepolia. Mở dashboard và chọn chain "
+              "\"Sepolia (testnet)\" ở thanh bên.", ""]
+    out = config.ROOT / "docs" / "TESTNET.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(lines), encoding="utf-8", newline="\n")
+    return out
+
+
+def _save(dep: dict) -> None:
+    dep_path().write_text(json.dumps(dep, indent=2, ensure_ascii=False), encoding="utf-8")
+    print("đã cập nhật", write_notes(dep).relative_to(config.ROOT))
 
 
 def cmd_status(env: dict[str, str]) -> int:
