@@ -250,6 +250,8 @@ def column_config(df: pd.DataFrame) -> dict:
             cfg[c] = st.column_config.NumberColumn(c, format="%.1f")
         elif "(MWh)" in c:
             cfg[c] = st.column_config.NumberColumn(c, format="%.3f")
+        elif c == "tokenId (hex)":
+            cfg[c] = st.column_config.TextColumn(c, width="large")
         elif c == "giao dịch":
             cfg[c] = st.column_config.LinkColumn(c, display_text="Etherscan") if chain.explorer else \
                 st.column_config.TextColumn(c)
@@ -281,6 +283,11 @@ def section(options: list[str], key: str) -> str:
     return st.radio("Mục", options, horizontal=True, key=key, label_visibility="collapsed")
 
 
+def tok(tid: int) -> str:
+    """tokenId đầy đủ: 0x + 64 chữ số hex (giữ số 0 ở đầu), đúng như trên Etherscan."""
+    return f"0x{int(tid):064x}"
+
+
 def mwh(wh: float) -> str:
     return f"{wh / 1e6:,.2f} MWh"
 
@@ -304,7 +311,7 @@ def certificates() -> pd.DataFrame:
     cp_of = {s32(e["deviceId"]): s32(e["cpId"]) for e in ev["DeviceRegistered"]}
     for e in ev["Issued"]:
         tid = int(e["tokenId"])
-        rows.append({"tokenId": tid, "mã": hex(tid)[:12] + "…", "thiết bị": s32(e["deviceId"]),
+        rows.append({"tokenId": tid, "tokenId (hex)": tok(tid), "thiết bị": s32(e["deviceId"]),
                      "CP": cp_of.get(s32(e["deviceId"]), ""), "ngày sản xuất": day_date(int(e["day"])).isoformat(),
                      "phát hành (kWh)": e["wh"] / 1000, "đã retire (kWh)": retired.get(tid, 0) / 1000,
                      "đã rút (kWh)": withdrawn.get(tid, 0) / 1000,
@@ -336,7 +343,7 @@ def transfers(addr: str, outgoing: bool) -> pd.DataFrame:
         if e["from"] == ZERO or e["to"] == ZERO or (e["from"] if outgoing else e["to"]) != addr:
             continue
         dev, day = cmap.get(int(e["id"]), ("?", 0))
-        rows.append({"tokenId": int(e["id"]), "thời điểm": when(e["block"]),
+        rows.append({"tokenId": int(e["id"]), "tokenId (hex)": tok(int(e["id"])), "thời điểm": when(e["block"]),
                      ("người nhận" if outgoing else "người chuyển"): name_of(e["to"] if outgoing else e["from"]),
                      "thiết bị": dev, "ngày sản xuất": day_date(day).isoformat() if day else "",
                      "lượng (kWh)": e["value"] / 1000, "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"})
@@ -485,7 +492,7 @@ def certificate_detail(tid: int) -> None:
     reg = next((e for e in ev["DeviceRegistered"] if s32(e["deviceId"]) == dev), None)
     cp = s32(reg["cpId"]) if reg else ""
     st.markdown(f"#### Chứng chỉ {dev} · ngày sản xuất {day_date(day)}")
-    st.code(f"tokenId = {hex(tid)}")
+    st.code(f"tokenId = {tok(tid)}")
     if chain.explorer:
         st.markdown(f"[Xem token này trên Sepolia Etherscan]({chain.explorer}/token/{chain.certs.address}?a={tid})")
     steps = []
@@ -531,7 +538,7 @@ def statement(e: dict) -> None:
         name_of(e["holder"]), e["beneficiary"], e["purpose"], e["consumptionLocation"], e["reportingPeriod"],
         f"{e['wh'] / 1000:,.3f} kWh",
         f"{s32(iss['deviceId'])}, ngày {day_date(int(iss['day']))}" if iss else "—",
-        hex(tid), when(e["block"]), e["tx"]]},
+        tok(tid), when(e["block"]), e["tx"]]},
         index=["Người retire", "Người thụ hưởng", "Mục đích", "Nơi tiêu thụ", "Kỳ báo cáo", "Lượng",
                "Nguồn (thiết bị, ngày sản xuất)", "tokenId", "Thời điểm retire", "Giao dịch"]))
     if chain.explorer:
@@ -625,10 +632,12 @@ if role == "Công khai":
         st.markdown("**Thao tác của Code Manager** (I-REC §11; luôn công khai, kèm lý do)")
         cmap = cert_of()
         cm = [{"thời điểm": when(e["block"]), "thao tác": "tạm khóa" if e["active"] else "mở khóa",
-               "chứng chỉ": " · ".join(map(str, cmap.get(int(e["tokenId"]), ("?", "")))), "lượng (kWh)": None,
+               "chứng chỉ": " · ".join(map(str, cmap.get(int(e["tokenId"]), ("?", "")))), "tokenId (hex)": tok(e["tokenId"]),
+               "lượng (kWh)": None,
                "lý do": e["reason"], "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"} for e in ev["Suspended"]]
         cm += [{"thời điểm": when(e["block"]), "thao tác": "rút",
-                "chứng chỉ": " · ".join(map(str, cmap.get(int(e["tokenId"]), ("?", "")))), "lượng (kWh)": e["wh"] / 1000,
+                "chứng chỉ": " · ".join(map(str, cmap.get(int(e["tokenId"]), ("?", "")))), "tokenId (hex)": tok(e["tokenId"]),
+                "lượng (kWh)": e["wh"] / 1000,
                 "lý do": e["reason"], "giao dịch": tx_url(e["tx"]) or e["tx"][:18] + "…"} for e in ev["Withdrawn"]]
         show(pd.DataFrame(cm))
         st.markdown("**Phân xử của Production Auditor**")
@@ -648,8 +657,8 @@ if role == "Công khai":
                                       "retired_wh": "đã retire (Wh)", "withdrawn_wh": "đã rút (Wh)",
                                       "complete": "đủ chuỗi"})
             lin["ngày sản xuất"] = [day_date(int(d)).isoformat() for d in lin.pop("day")]
-            lin["mã"] = lin.pop("token_id").str[:12] + "…"
-            show(lin[["mã", "thiết bị", "ngày sản xuất", "đã đăng ký", "có bằng chứng", "file khớp hash",
+            lin["tokenId (hex)"] = [tok(int(x, 16)) for x in lin.pop("token_id")]
+            show(lin[["tokenId (hex)", "thiết bị", "ngày sản xuất", "đã đăng ký", "có bằng chứng", "file khớp hash",
                       "dấu vết REVIEW", "số dư khớp", "số lần chuyển", "đã retire (Wh)", "đã rút (Wh)", "đủ chuỗi"]])
 
 # ---------------------------------------------------------------------- nhà máy
@@ -742,7 +751,7 @@ elif role == "Người mua":
         st.caption("Mọi chứng chỉ đã phát hành. Cột \"nhà máy còn giữ\" là lượng chưa bán; muốn mua thì liên hệ nhà máy "
                    "(thanh toán ngoài hệ thống), nhà máy chuyển nhượng sang tài khoản của bạn.")
         allc = balances(balances(certificates(), PLANT, "nhà máy còn giữ (kWh)"), addr, "bạn đang giữ (kWh)", 7)
-        allc = allc.drop(columns=["CP", "mã"]) if len(allc) else allc
+        allc = allc.drop(columns=["CP"]) if len(allc) else allc
         only = st.checkbox("Chỉ hiện chứng chỉ nhà máy còn giữ", value=False)
         if only and len(allc):
             allc = allc[allc["nhà máy còn giữ (kWh)"] > 0].reset_index(drop=True)
@@ -756,7 +765,8 @@ elif role == "Người mua":
             certificate_detail(int(got.iloc[i]["tokenId"]))
     else:
         table = pd.DataFrame([{"thời điểm": when(e["block"]), "chứng chỉ": " · ".join(map(str, cert_of().get(
-            int(e["tokenId"]), ("?", "")))), "lượng (kWh)": e["wh"] / 1000, "thụ hưởng": e["beneficiary"],
+            int(e["tokenId"]), ("?", "")))), "tokenId (hex)": tok(e["tokenId"]), "lượng (kWh)": e["wh"] / 1000,
+            "thụ hưởng": e["beneficiary"],
             "mục đích": e["purpose"], "kỳ": e["reportingPeriod"]} for e in mine_r])
         i = pick(table, f"{buyer}-stmts")
         if i is not None:
