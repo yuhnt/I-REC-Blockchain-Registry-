@@ -121,6 +121,18 @@ Giai đoạn 5 (cần Hardhat; mỗi lệnh tự khởi động node):
 .venv/Scripts/streamlit run dashboard/app.py
 ```
 
+Trình diễn trên testnet Sepolia (tùy chọn; thí nghiệm vẫn chạy trên Hardhat cục bộ). Cần `contracts/.env` (không commit) có `SEPOLIA_RPC_URL` (endpoint Alchemy cho Ethereum Sepolia), `TESTNET_MNEMONIC` (12 từ, ví mới chỉ dùng cho testnet) và tùy chọn `ETHERSCAN_API_KEY`. Các lệnh không in mnemonic, khóa riêng hay URL RPC:
+
+```bash
+.venv/Scripts/python -m rec.experiments.testnet addresses   # địa chỉ 15 vai; xin ETH test từ faucet vào deployer (#0)
+.venv/Scripts/python -m rec.experiments.testnet fund        # chia ETH từ deployer cho các vai gửi giao dịch
+.venv/Scripts/python -m rec.experiments.testnet deploy      # deploy 3 contract (khoảng 0,035 ETH test)
+.venv/Scripts/python -m rec.experiments.testnet verify      # đăng mã nguồn lên Sepolia Etherscan
+.venv/Scripts/python -m rec.experiments.testnet demo        # 3 ngày dữ liệu demo (khoảng 60 giao dịch, 15–20 phút)
+```
+
+Sau đó mở dashboard và chọn chain "Sepolia (testnet)" ở thanh bên; mỗi chứng chỉ có liên kết sang Sepolia Etherscan.
+
 Sinh lại toàn bộ kết quả (dữ liệu → generator → E2 → E1 → parity → E3 → hình, khoảng 1 giờ), rồi so với manifest kết quả đã commit:
 
 ```bash

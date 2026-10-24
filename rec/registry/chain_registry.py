@@ -4,6 +4,7 @@
   theo đồng hồ mô phỏng (`evm_setNextBlockTimestamp`).
 - `ChainRegistry` deploy một lần, chụp snapshot, rồi `reset()` về snapshot trước mỗi dòng sự kiện.
 Khóa oracle và verifier là tài khoản kiểm thử công khai của Hardhat; các vai khác dùng tài khoản đã mở khóa của node.
+- `TestnetRegistry` dùng cùng logic cho mạng công khai (Sepolia): ký tại máy bằng khóa suy ra từ mnemonic.
 """
 from __future__ import annotations
 
@@ -82,16 +83,21 @@ class HardhatNode:
 class ChainRegistry(Registry):
     name = "chain"
 
-    def __init__(self, plant: Plant, url: str, interval_mining: bool = False):
+    def __init__(self, plant: Plant, url: str, interval_mining: bool = False, deployment: dict | None = None):
+        """`deployment` = {"contracts": {tên: địa chỉ}} thì gắn vào contract đã deploy thay vì deploy mới."""
         self.plant = plant
         self.interval_mining = interval_mining  # E3: block mỗi 2 giây, không đặt timestamp theo đồng hồ mô phỏng
         self.arrival_jitter_s = 0.0
         self._rng = random.Random(0)
         self.w3 = Web3(Web3.HTTPProvider(url, request_kwargs={"timeout": 60}))
-        accts = self.w3.eth.accounts
-        self.addr = {role: Web3.to_checksum_address(accts[i]) for i, role in enumerate(ROLES)}
-        self.keys = {role: hardhat_account(ROLES.index(role)) for role in ("O1", "O2", "O3", "O4", "verifier")}
-        self._deploy()
+        self._setup_accounts()
+        if deployment:
+            c = deployment["contracts"]
+            self.devices = self._contract("DeviceRegistry", c["DeviceRegistry"])
+            self.certs = self._contract("CertificateRegistry", c["CertificateRegistry"])
+            self.gate = self._contract("DecisionGate", c["DecisionGate"])
+        else:
+            self._deploy()
         self.signer = Signer(self.gate.address)
         self._errors = self._error_selectors()
         self._topics = {name: keccak(text=sig) for name, sig in (
@@ -99,9 +105,23 @@ class ChainRegistry(Registry):
             ("IssueRejected", "IssueRejected(bytes32,bytes32,uint32,uint8)"),
             ("IssueHeld", "IssueHeld(bytes32,bytes32)"),
             ("O1Conflict", "O1Conflict(bytes32,uint64,uint64)"))}
-        self._snapshot = self._rpc("evm_snapshot")
+        self._snapshot = self._take_snapshot()
         self.gas_log: list[tuple[str, int]] = []
         self.lat_log: list[tuple[str, float]] = []
+
+    def _setup_accounts(self) -> None:
+        """Node Hardhat: các vai dùng tài khoản đã mở khóa; oracle và verifier ký bằng khóa kiểm thử công khai."""
+        accts = self.w3.eth.accounts
+        self.addr = {role: Web3.to_checksum_address(accts[i]) for i, role in enumerate(ROLES)}
+        self.keys = {role: hardhat_account(ROLES.index(role)) for role in ("O1", "O2", "O3", "O4", "verifier")}
+
+    def _take_snapshot(self):
+        return self._rpc("evm_snapshot")
+
+    def _transact(self, fn, role: str):
+        """Giao dịch dùng trong lúc deploy (constructor, setGate); trả receipt."""
+        tx = fn.transact({"from": self.addr[role], "gas": 10_000_000})
+        return self.w3.eth.wait_for_transaction_receipt(tx, poll_latency=0.05)
 
     # ---------------------------------------------------------------- hạ tầng
 
@@ -116,8 +136,10 @@ class ChainRegistry(Registry):
         if address is not None:
             return self.w3.eth.contract(address=address, abi=art["abi"])
         factory = self.w3.eth.contract(abi=art["abi"], bytecode=art["bytecode"])
-        tx = factory.constructor(*args).transact({"from": self.addr["deployer"], "gas": 10_000_000})
-        rcpt = self.w3.eth.wait_for_transaction_receipt(tx, poll_latency=0.05)
+        rcpt = self._transact(factory.constructor(*args), "deployer")
+        self.deploy_args = getattr(self, "deploy_args", {})
+        self.deploy_args[name] = args
+        self.deploy_block = min(getattr(self, "deploy_block", rcpt.blockNumber), rcpt.blockNumber)
         return self.w3.eth.contract(address=rcpt.contractAddress, abi=art["abi"])
 
     def _deploy(self) -> None:
@@ -129,8 +151,7 @@ class ChainRegistry(Registry):
             self.devices.address, self.certs.address, self.addr["auditor"], [b32(c) for c in cps],
             [self.addr[self.plant.holder_of[c]] for c in cps],
             [[self.addr[o] for o in ("O1", "O2", "O3", "O4")] for _ in cps], [self.addr["verifier"]]))
-        tx = self.certs.functions.setGate(self.gate.address).transact({"from": self.addr["deployer"], "gas": GAS})
-        self.w3.eth.wait_for_transaction_receipt(tx, poll_latency=0.05)
+        self._transact(self.certs.functions.setGate(self.gate.address), "deployer")
 
     def _error_selectors(self) -> dict[str, str]:
         out = {}
@@ -300,3 +321,66 @@ class ChainRegistry(Registry):
         s = report_struct(ev.reports[0])
         rep = tuple(s[n] for n in ["oracle", "cpId", "day", "valueDay", "maxSlot", "slotsPresent", "dataRoot"])
         return bytes(self.gate.functions.reportHash(rep).call()), struct_hash("OracleReport", s)
+
+
+class TestnetRegistry(ChainRegistry):
+    """Cùng logic với `ChainRegistry`, nhưng cho mạng công khai (Sepolia qua Alchemy): node không giữ tài khoản, nên
+    mọi giao dịch được ký tại máy bằng khóa suy ra từ mnemonic rồi gửi `eth_sendRawTransaction`.
+
+    Không có snapshot hay đặt timestamp: block mang thời gian thật (sau mọi ngày của dòng sự kiện), nên luật "kỳ đã
+    kết thúc" luôn qua.
+    """
+
+    name = "testnet"
+
+    def __init__(self, plant: Plant, url: str, mnemonic: str, deployment: dict | None = None):
+        self._mnemonic = mnemonic
+        super().__init__(plant, url, deployment=deployment)
+
+    def _setup_accounts(self) -> None:
+        self.accounts = {role: hardhat_account(i, self._mnemonic) for i, role in enumerate(ROLES)}
+        self.addr = {role: a.address for role, a in self.accounts.items()}
+        self.keys = {role: self.accounts[role] for role in ("O1", "O2", "O3", "O4", "verifier")}
+
+    def _take_snapshot(self):
+        return None
+
+    def checkpoint(self) -> None:
+        raise RuntimeError("mạng công khai không có snapshot")
+
+    reset = checkpoint
+
+    def _at(self, t: int) -> None:
+        pass  # không đặt được timestamp trên mạng công khai
+
+    def _sign_and_send(self, fn, role: str):
+        """Ước lượng gas (revert thì báo lỗi ngay, không tốn phí), ký, gửi, chờ receipt."""
+        acct = self.accounts[role]
+        tx = fn.build_transaction({"from": acct.address, "nonce": self.w3.eth.get_transaction_count(acct.address,
+                                                                                                     "pending")})
+        tx["gas"] = int(tx["gas"] * 1.2)
+        raw = acct.sign_transaction(tx).raw_transaction
+        h = self.w3.eth.send_raw_transaction(raw)
+        return self.w3.eth.wait_for_transaction_receipt(h, timeout=600, poll_latency=2)
+
+    def _transact(self, fn, role: str):
+        return self._sign_and_send(fn, role)
+
+    def _send(self, fn, role: str, t: int, op: str):
+        t_send = time.perf_counter()
+        try:
+            rcpt = self._sign_and_send(fn, role)
+        except Exception as e:  # noqa: BLE001 – estimate_gas báo revert của contract
+            return None, self._decode_error(str(getattr(e, "data", "")) + " " + str(e))
+        self.lat_log.append((op, time.perf_counter() - t_send))
+        if rcpt.status == 0:
+            return None, "Revert"
+        self.gas_log.append((op, rcpt.gasUsed))
+        logs = [{"topics": ["0x" + bytes(t).hex() for t in lg.topics], "data": "0x" + bytes(lg.data).hex()}
+                for lg in rcpt.logs]
+        return _Receipt(rcpt.gasUsed, "0x" + bytes(rcpt.transactionHash).hex(), logs), None
+
+    def operator_edit(self, edit, t):
+        fn = self.certs.functions.withdraw(0, self.addr["plant"], 1, "insider")
+        _, err = self._send(fn, edit.issuer, t, "operator_edit")
+        return Outcome("revert", err or "NoAdminFunction")

@@ -8,9 +8,11 @@
   chứng, rồi duyệt / bác; chứng chỉ đang bị Code Manager tạm khóa.
 
 Chạy sau khi dựng chain demo:
-    python -m rec.experiments.demo
+    python -m rec.experiments.demo                  (Hardhat cục bộ)
+    python -m rec.experiments.testnet deploy, demo  (Sepolia; xem rec/experiments/testnet.py)
     streamlit run dashboard/app.py
-Demo: giao dịch được ký bằng các tài khoản đã mở khóa của node Hardhat. Trong vận hành thật, mỗi bên ký bằng ví riêng.
+Thanh bên chọn chain. Hardhat cục bộ: giao dịch ký bằng tài khoản đã mở khóa của node. Sepolia: ký tại máy bằng khóa
+suy ra từ TESTNET_MNEMONIC trong contracts/.env; URL RPC (chứa API key) không bao giờ hiện trên trang.
 """
 from __future__ import annotations
 
@@ -31,8 +33,10 @@ sys.path.insert(0, str(ROOT))
 
 from rec import config  # noqa: E402
 from rec.experiments.e3 import lineage  # noqa: E402
+from rec.experiments.testnet import load_env  # noqa: E402
+from rec.oracles.signer import hardhat_account  # noqa: E402
 from rec.oracles.store import FileStore  # noqa: E402
-from rec.registry.chain_registry import REASONS, _artifact  # noqa: E402
+from rec.registry.chain_registry import REASONS, ROLES, _artifact  # noqa: E402
 from rec.schema import Flag  # noqa: E402
 from rec.timeutil import PLANT_TZ, day_date  # noqa: E402
 
@@ -59,13 +63,21 @@ def flags_text(f: int) -> str:
     return ", ".join(names) or "—"
 
 
+SOURCES = {"Hardhat cục bộ": ("demo", "deployment.json"), "Sepolia (testnet)": ("testnet", "deployment.json")}
+LOG_CHUNK = 2_000  # số block mỗi lần get_logs trên mạng công khai (nhà cung cấp RPC giới hạn khoảng block)
+
+
 @st.cache_resource
-def connect():
-    dep_path = config.resolve_path("artifacts") / "demo" / "deployment.json"
+def connect(source: str):
+    dep_path = config.resolve_path("artifacts").joinpath(*SOURCES[source])
     if not dep_path.exists():
         return None
     dep = json.loads(dep_path.read_text(encoding="utf-8"))
-    w3 = Web3(Web3.HTTPProvider(dep["url"]))
+    env = load_env() if dep.get("network") == "sepolia" else {}
+    url = env.get("SEPOLIA_RPC_URL") if env else dep["url"]
+    if not url:
+        return None
+    w3 = Web3(Web3.HTTPProvider(url, request_kwargs={"timeout": 60}))
     c = {name: w3.eth.contract(address=addr, abi=_artifact(name)["abi"]) for name, addr in dep["contracts"].items()}
     errors = {}
     for name in c:
@@ -73,14 +85,29 @@ def connect():
             if item["type"] == "error":
                 sig = f"{item['name']}(" + ",".join(i["type"] for i in item["inputs"]) + ")"
                 errors["0x" + keccak(text=sig)[:4].hex()] = item["name"]
+    mnemonic = env.get("TESTNET_MNEMONIC", "")
     return SimpleNamespace(w3=w3, dep=dep, devices=c["DeviceRegistry"], certs=c["CertificateRegistry"],
-                           gate=c["DecisionGate"], store=FileStore(Path(dep["store"])), errors=errors)
+                           gate=c["DecisionGate"], store=FileStore(Path(dep["store"])), errors=errors,
+                           public=dep.get("network") == "sepolia", explorer=dep.get("explorer"),
+                           key_of=lambda role: hardhat_account(ROLES.index(role), mnemonic))
 
 
-@st.cache_data(ttl=5, show_spinner=False)
-def load_events(block: int) -> dict:
+def get_logs(contract, name: str, start: int, end: int) -> list:
+    """Event từ block `start`; trên mạng công khai đọc theo từng khúc để không vượt giới hạn của RPC."""
+    ev_ = getattr(contract.events, name)()
+    if not chain.public:
+        return ev_.get_logs(from_block=start)
+    out = []
+    for a in range(start, end + 1, LOG_CHUNK):
+        out += ev_.get_logs(from_block=a, to_block=min(a + LOG_CHUNK - 1, end))
+    return out
+
+
+@st.cache_data(ttl=15, show_spinner=False)
+def load_events(source: str, block: int) -> dict:
     """Mọi event cần cho dashboard; khóa cache theo số block để tự làm mới khi chain có giao dịch mới."""
-    ch = connect()
+    ch = connect(source)
+    start = int(ch.dep.get("from_block", 0))
     out = {}
     for contract, names in ((ch.gate, ["LotEvidenced", "LotReview", "LotResolved", "O1Conflict", "Issued",
                                        "IssueRejected", "IssueHeld"]),
@@ -88,16 +115,33 @@ def load_events(block: int) -> dict:
                             (ch.devices, ["DeviceRegistered", "RegistrationTransferred", "RegistrationClosed"])):
         for n in names:
             out[n] = [dict(lg.args) | {"block": lg.blockNumber, "tx": "0x" + lg.transactionHash.hex().removeprefix("0x")}
-                      for lg in getattr(contract.events, n)().get_logs(from_block=0)]
+                      for lg in get_logs(contract, n, start, block)]
     return out
+
+
+def transact(fn, role: str):
+    """Gửi giao dịch bằng vai `role`: node Hardhat ký hộ (tài khoản mở khóa); Sepolia ký tại máy bằng khóa từ mnemonic."""
+    if not chain.public:
+        tx = fn.transact({"from": chain.dep["roles"][role], "gas": 1_000_000, "gasPrice": 0})
+        return chain.w3.eth.wait_for_transaction_receipt(tx)
+    acct = chain.key_of(role)
+    tx = fn.build_transaction({"from": acct.address, "nonce": chain.w3.eth.get_transaction_count(acct.address, "pending")})
+    tx["gas"] = int(tx["gas"] * 1.2)
+    h = chain.w3.eth.send_raw_transaction(acct.sign_transaction(tx).raw_transaction)
+    return chain.w3.eth.wait_for_transaction_receipt(h, timeout=600, poll_latency=2)
+
+
+def tx_link(h: str) -> str:
+    return f"[{h[:12]}…]({chain.explorer}/tx/{h})" if chain.explorer else f"{h[:18]}…"
 
 
 def send(fn, role: str, done: str) -> None:
     """Gửi giao dịch bằng tài khoản của vai `role`; báo kết quả sau khi trang tải lại."""
     try:
-        tx = fn.transact({"from": chain.dep["roles"][role], "gas": 1_000_000, "gasPrice": 0})
-        rcpt = chain.w3.eth.wait_for_transaction_receipt(tx)
-        st.session_state["flash"] = ("success", f"{done} · block {rcpt.blockNumber}, gas {rcpt.gasUsed:,}")
+        with st.spinner("Đang gửi giao dịch" + (" lên Sepolia (khoảng 12–30 giây)…" if chain.public else "…")):
+            rcpt = transact(fn, role)
+        h = "0x" + bytes(rcpt.transactionHash).hex()
+        st.session_state["flash"] = ("success", f"{done} · block {rcpt.blockNumber}, gas {rcpt.gasUsed:,} · tx {tx_link(h)}")
     except Exception as e:  # noqa: BLE001 – contract revert
         text = str(getattr(e, "data", "")) + " " + str(e)
         name = next((chain.errors[s.lower()] for s in re.findall(r"0x[0-9a-fA-F]{8}", text)
@@ -114,13 +158,16 @@ def clear_selection() -> None:
         del st.session_state[k]
 
 
-chain = connect()
+available = [k for k, v in SOURCES.items() if config.resolve_path("artifacts").joinpath(*v).exists()]
+source = st.sidebar.selectbox("Chain", available or list(SOURCES))
+chain = connect(source) if available else None
 if chain is None or not chain.w3.is_connected():
     st.title("Registry chứng chỉ I-REC – điện mặt trời")
-    st.error("Chưa có chain demo. Chạy `python -m rec.experiments.demo` trước, rồi tải lại trang.")
+    st.error("Chưa kết nối được chain. Hardhat cục bộ: chạy `python -m rec.experiments.demo`. Sepolia: chạy "
+             "`python -m rec.experiments.testnet deploy` rồi `demo`, và kiểm tra `contracts/.env`.")
     st.stop()
 block = chain.w3.eth.block_number
-ev = load_events(block)
+ev = load_events(source, block)
 addr_name = {v: k for k, v in chain.dep["roles"].items()}
 name_of = lambda a: addr_name.get(a, a[:10] + "…")  # noqa: E731
 
@@ -247,6 +294,9 @@ def certificate_detail(tid: int) -> None:
     cp = s32(reg["cpId"]) if reg else ""
     st.markdown(f"#### Chứng chỉ {dev} · {day_date(day)}")
     st.code(f"tokenId = {hex(tid)}")
+    if chain.explorer:
+        st.markdown(f"[Xem token này trên Sepolia Etherscan]({chain.explorer}/token/{chain.certs.address}?a={tid}) · "
+                    f"giao dịch phát hành {tx_link(iss['tx'])}")
     steps = []
     if reg:
         steps.append(("Đăng ký thiết bị", f"{cp}, {reg['capacityW'] / 1000:.0f} kW, issuer {name_of(reg['issuer'])},"
@@ -290,9 +340,11 @@ def statement(e: dict) -> None:
         name_of(e["holder"]), e["beneficiary"], e["purpose"], e["consumptionLocation"], e["reportingPeriod"],
         f"{e['wh'] / 1000:,.3f} kWh",
         f"{s32(iss['deviceId'])}, ngày {day_date(int(iss['day']))}" if iss else "—",
-        hex(tid), f"block {e['block']}, tx {e['tx'][:18]}…"]},
+        hex(tid), f"block {e['block']}, tx {e['tx']}"]},
         index=["Người retire", "Người thụ hưởng", "Mục đích", "Nơi tiêu thụ", "Kỳ báo cáo", "Lượng",
                "Nguồn (thiết bị, ngày sản xuất)", "tokenId", "Bằng chứng on-chain"]))
+    if chain.explorer:
+        st.markdown(f"Giao dịch retire trên Etherscan: {tx_link(e['tx'])}")
     st.caption("Tuyên bố không sửa được và không đảo ngược được (I-REC §10); phần chứng chỉ được retire đã bị đốt.")
 
 
@@ -328,8 +380,14 @@ def transfer_and_retire(holder_role: str, row: pd.Series, others: list[str]) -> 
 
 st.sidebar.title("Registry I-REC")
 role = st.sidebar.radio("Vai trò", ROLES)
-st.sidebar.caption(f"Chain {chain.dep['url']} · block {block}\n\nLớp B: {chain.dep['profile']} ({chain.dep['variant']})")
-st.sidebar.info("Demo: giao dịch ký bằng tài khoản mở khóa của node Hardhat. Thực tế mỗi bên ký bằng ví riêng.")
+net = "Sepolia" if chain.public else chain.dep["url"]
+st.sidebar.caption(f"{net} · block {block}\n\nLớp B: {chain.dep['profile']} ({chain.dep['variant']})")
+if chain.public:
+    st.sidebar.markdown(f"[Contract chứng chỉ trên Etherscan]({chain.explorer}/token/{chain.certs.address})")
+    st.sidebar.info("Sepolia: giao dịch ký tại máy bằng khóa suy ra từ TESTNET_MNEMONIC (contracts/.env); mỗi giao "
+                    "dịch tốn ETH test và ghi công khai.")
+else:
+    st.sidebar.info("Demo: giao dịch ký bằng tài khoản mở khóa của node Hardhat. Thực tế mỗi bên ký bằng ví riêng.")
 if "flash" in st.session_state:
     kind, msg = st.session_state.pop("flash")
     (st.success if kind == "success" else st.error)(msg)
@@ -456,9 +514,7 @@ elif role == "Issuer":
         ready = df[(df["lô"] == "đã duyệt") & ~df["đã phát hành"]]
         if st.button(f"Gửi lại {len(ready)} yêu cầu của các lô đã duyệt", disabled=ready.empty):
             for r in ready.itertuples():
-                fn = chain.gate.functions.issue(b32(r.req_id[:31]), b32(r.device), r.day, [r.wh])
-                tx = fn.transact({"from": chain.dep["roles"][issuer], "gas": 1_000_000, "gasPrice": 0})
-                chain.w3.eth.wait_for_transaction_receipt(tx)
+                transact(chain.gate.functions.issue(b32(r.req_id[:31]), b32(r.device), r.day, [int(r.wh)]), issuer)
             st.session_state["flash"] = ("success", f"Đã gửi lại {len(ready)} yêu cầu; xem kết quả ở trang Công khai.")
             clear_selection()
             st.cache_data.clear()

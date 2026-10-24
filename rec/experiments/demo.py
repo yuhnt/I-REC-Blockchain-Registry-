@@ -40,20 +40,10 @@ def _arg(argv, name, default):
     return argv[argv.index(name) + 1] if name in argv else default
 
 
-def main(argv: list[str]) -> int:
-    sys.stdout.reconfigure(encoding="utf-8")
-    from rec.registry.chain_registry import ChainRegistry, HardhatNode
-
+def populate(chain, n_days: int = DEMO_DAYS, lots: tuple[str, ...] = ("M2-k1", "M2-k3", "honest"),
+             code_manager: bool = True) -> dict:
+    """Nạp dữ liệu demo vào một backend chain đã deploy (Hardhat cục bộ hoặc testnet); trả thông tin cho dashboard."""
     artifacts = config.resolve_path("artifacts")
-    dep_path = artifacts / "demo" / "deployment.json"
-    if "--stop" in argv:
-        if dep_path.exists():
-            pid = json.loads(dep_path.read_text(encoding="utf-8"))["node_pid"]
-            subprocess.run(f"taskkill /F /T /PID {pid}", shell=True, capture_output=True)
-            print("đã dừng node", pid)
-        return 0
-
-    port = int(_arg(argv, "--port", "8545"))
     scen = config.load("scenarios")
     pcfg = scen["plant"]
     plant = plant_from_config(pcfg)
@@ -67,15 +57,13 @@ def main(argv: list[str]) -> int:
     store = FileStore(artifacts / "store")
     verifier = Verifier("Proposed")
 
-    node = HardhatNode(port)
-    chain = ChainRegistry(plant, node.url)
-    events = truncate(load_stream(artifacts / "testset" / "e1", "honest_s101"), test_days[0], DEMO_DAYS)
+    events = truncate(load_stream(artifacts / "testset" / "e1", "honest_s101"), test_days[0], n_days)
     log = pd.DataFrame(run_stream(chain, events, sun, issuer_a, make_verdict(verifier, data, temps, slot_ends, store),
                                   auditor=lambda c, d: True))
     print("dòng hợp lệ:", len(log), "thao tác; MINT", int((log["outcome"] == "mint").sum()), "yêu cầu")
 
     first = test_days[0]
-    t_after = local_t(test_days[DEMO_DAYS - 1] + 2, REQUEST_AT)
+    t_after = local_t(test_days[n_days - 1] + 2, REQUEST_AT)
     # D1: nộp lại một (thiết bị, ngày) đã phát hành.
     d1 = chain.issue(IssueRequest("demo-D1", issuer_a, "B1", first, (100_000,)), t_after)
     # D4a: issuerB đăng ký thiết bị mới cùng CP rồi chép sản lượng của B2.
@@ -91,7 +79,7 @@ def main(argv: list[str]) -> int:
     held_reqs: list[dict] = []
 
     def pending_lot(tag: str, gains: dict, want_flags: bool = True) -> int | None:
-        for day in test_days[DEMO_DAYS:DEMO_DAYS + 180]:
+        for day in test_days[n_days:n_days + 180]:
             dd = data[day]
             if day in used or np.nanmax(dd.series[OracleId.O1]) * gains.get(OracleId.O1, 1.0) >= slot_cap:
                 continue
@@ -120,11 +108,15 @@ def main(argv: list[str]) -> int:
         print(f"lô {tag}: không tìm được ngày phù hợp")
         return None
 
-    day = pending_lot("M2-k1", {OracleId.O1: GAIN})
-    # Ở k = 3 phần lớn các ngày khai tăng 20% vẫn lọt dưới trần AI (đúng như LMAX ≈ 12% của E2); chọn ngày bị bắt.
-    pending_lot("M2-k3", {OracleId.O1: 1.2, OracleId.O2: 1.2, OracleId.O3: 1.2})
-    pending_lot("honest", {})  # dữ liệu thật, không sửa: lô trung thực mà Proposed REVIEW nhầm
+    gains = {"M2-k1": {OracleId.O1: GAIN},
+             # Ở k = 3 phần lớn các ngày khai tăng 20% vẫn lọt dưới trần AI (đúng như LMAX ≈ 12% của E2).
+             "M2-k3": {OracleId.O1: 1.2, OracleId.O2: 1.2, OracleId.O3: 1.2},
+             "honest": {}}  # dữ liệu thật, không sửa: lô trung thực mà Proposed REVIEW nhầm
+    review_days = [pending_lot(tag, gains[tag]) for tag in lots]
+    day = next((d for d in review_days if d is not None), test_days[n_days])
 
+    if not code_manager:
+        return {"review_day": day, "held_requests": held_reqs, "store": str(artifacts / "store")}
     # Code Manager: tạm khóa rồi rút một phần một chứng chỉ chưa retire; insider thử withdraw.
     t_cm = local_t(day + 2, 12 * 3600)
     minted = log[(log["outcome"] == "mint")][["device", "day"]].itertuples(index=False)
@@ -135,12 +127,33 @@ def main(argv: list[str]) -> int:
     wd = chain.withdraw(dev3, d3, "plant", max(1, bal // 10), "Rút 10% phát hành sai (demo)", t_cm + 60)
     ins = chain.operator_edit(OperatorEdit(issuer_a, "h-0-B1", EditAction.UPDATE), t_cm + 120)
     print("Code Manager rút:", wd.kind, "| insider:", ins.kind, ins.reason)
+    return {"review_day": day, "held_requests": held_reqs, "store": str(artifacts / "store")}
 
-    dep = {"url": node.url, "node_pid": node.proc.pid, "store": str(artifacts / "store"),
-           "contracts": {"DeviceRegistry": chain.devices.address, "CertificateRegistry": chain.certs.address,
-                         "DecisionGate": chain.gate.address},
-           "roles": chain.addr, "review_day": day, "profile": "Proposed", "variant": "prereg",
-           "held_requests": held_reqs}
+
+def deployment_info(chain) -> dict:
+    return {"contracts": {"DeviceRegistry": chain.devices.address, "CertificateRegistry": chain.certs.address,
+                          "DecisionGate": chain.gate.address},
+            "roles": chain.addr, "profile": "Proposed", "variant": "prereg"}
+
+
+def main(argv: list[str]) -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
+    from rec.registry.chain_registry import ChainRegistry, HardhatNode
+
+    artifacts = config.resolve_path("artifacts")
+    dep_path = artifacts / "demo" / "deployment.json"
+    if "--stop" in argv:
+        if dep_path.exists():
+            pid = json.loads(dep_path.read_text(encoding="utf-8"))["node_pid"]
+            subprocess.run(f"taskkill /F /T /PID {pid}", shell=True, capture_output=True)
+            print("đã dừng node", pid)
+        return 0
+
+    node = HardhatNode(int(_arg(argv, "--port", "8545")))
+    chain = ChainRegistry(plant_from_config(config.load("scenarios")["plant"]), node.url)
+    extra = populate(chain)
+    dep = {"network": "hardhat", "url": node.url, "node_pid": node.proc.pid, "from_block": 0,
+           **deployment_info(chain), **extra}
     dep_path.parent.mkdir(parents=True, exist_ok=True)
     dep_path.write_text(json.dumps(dep, indent=2, ensure_ascii=False), encoding="utf-8")
     print("đã ghi", dep_path, "| node vẫn chạy ở", node.url, "(PID", node.proc.pid, ")")
