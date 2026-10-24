@@ -29,8 +29,9 @@ VERDICT_TYPEHASH = keccak(text=_TYPE_STR["Verdict"])
 Account.enable_unaudited_hdwallet_features()
 
 
-def hardhat_account(index: int):
-    return Account.from_mnemonic(HARDHAT_MNEMONIC, account_path=f"m/44'/60'/0'/0/{index}")
+def hardhat_account(index: int, mnemonic: str = HARDHAT_MNEMONIC):
+    """Tài khoản thứ `index` theo đường dẫn BIP-44 của Hardhat (mặc định là mnemonic kiểm thử công khai)."""
+    return Account.from_mnemonic(mnemonic, account_path=f"m/44'/60'/0'/0/{index}")
 
 
 def b32(s: str) -> bytes:
