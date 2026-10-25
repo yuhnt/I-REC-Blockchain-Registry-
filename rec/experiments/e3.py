@@ -28,14 +28,16 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 from eth_utils import keccak
+from web3.datastructures import AttributeDict
 
 from rec import config
-from rec.experiments.runner import load_stream, plant_from_config, run_stream
 from rec.gate.verifier import Verifier
 from rec.generator.common import load_days
+from rec.oracles.node import oracle_nodes
 from rec.oracles.store import FileStore
 from rec.registry.base import LotEvidence
 from rec.schema import EventKind, OracleId
+from rec.sim.runner import load_stream, plant_from_config, run_stream
 
 CONFIGS = ("B1", "B2", "Proposed")
 ORDER = (OracleId.O1, OracleId.O2, OracleId.O3, OracleId.O4)
@@ -60,16 +62,20 @@ def truncate(events, first_day: int, n_days: int):
     return keep
 
 
-def make_verdict(verifier: Verifier | None, data, temps, slot_ends, store: FileStore):
+def make_verdict(verifier: Verifier | None, data, temps, slot_ends, chain, store: FileStore):
+    """Bằng chứng của lô: 4 nút oracle độc lập (rec/oracles/node.py) mỗi nút tự lưu chuỗi 15 phút của mình vào kho
+    và tự ký báo cáo; verifier (nếu có) chạy lớp B trên cùng chuỗi đó."""
+    cp = next(iter(chain.plant.cp_capacity_w))
+    nodes = oracle_nodes(cp, chain.gate.address, chain.w3.eth.chain_id, chain.mnemonic, store)
+
     def verdict_of(cp: str, day: int, reports):
         dd = data[day]
-        for o in ORDER:  # oracle lưu chuỗi 15 phút vào kho, tên file = data_root
-            root = store.put(o, cp, day, dd.series[o], slot_ends.get(day))
-            assert root == reports[ORDER.index(o)].data_root
+        signed = tuple(nodes[o].observe(day, dd.series[o], dd.sun, slot_ends.get(day)) for o in ORDER)
+        assert [r.data_root for r in signed] == [r.data_root for r in reports]  # khớp báo cáo trong dòng sự kiện
         if verifier is None:
-            return LotEvidence(cp, day, reports, 0, int(dd.sun.sum()))
+            return LotEvidence(cp, day, signed, 0, int(dd.sun.sum()))
         v = verifier.evaluate(day, dd.series, dd.sun, temps[day])
-        return LotEvidence(cp, day, reports, v.flags, v.sun_slots, v.ceiling_wh, v.model_hash, store.put_json(v.reasons))
+        return LotEvidence(cp, day, signed, v.flags, v.sun_slots, v.ceiling_wh, v.model_hash, store.put_json(v.reasons))
     return verdict_of
 
 
@@ -78,23 +84,30 @@ def _logs(chain, contract, event: str, from_block: int = 0) -> list:
     return ev().get_logs(from_block=from_block)
 
 
-def lineage(chain, store: FileStore) -> pd.DataFrame:
+def _args(chain, contract, event: str, events: dict | None) -> list:
+    """Tham số của mọi event `event`. Có `events` (event đã đọc sẵn, ví dụ dashboard đọc log theo khúc vì RPC công khai
+    giới hạn khoảng block) thì dùng luôn, không gọi lại eth_getLogs."""
+    if events is not None:
+        return [AttributeDict(e) for e in events[event]]
+    return [lg.args for lg in _logs(chain, contract, event)]
+
+
+def lineage(chain, store: FileStore, events: dict | None = None) -> pd.DataFrame:
     """Dựng lại chuỗi của từng chứng chỉ chỉ từ event on-chain và kho file."""
-    registered = {bytes(lg.args.deviceId) for lg in _logs(chain, chain.devices, "DeviceRegistered")}
-    lots = {bytes(lg.args.lotKey): lg.args for lg in _logs(chain, chain.gate, "LotEvidenced")}
-    reviews = {bytes(lg.args.lotKey): lg.args for lg in _logs(chain, chain.gate, "LotReview")}
-    resolved = {bytes(lg.args.lotKey): lg.args for lg in _logs(chain, chain.gate, "LotResolved")}
+    registered = {bytes(a.deviceId) for a in _args(chain, chain.devices, "DeviceRegistered", events)}
+    lots = {bytes(a.lotKey): a for a in _args(chain, chain.gate, "LotEvidenced", events)}
+    reviews = {bytes(a.lotKey): a for a in _args(chain, chain.gate, "LotReview", events)}
+    resolved = {bytes(a.lotKey): a for a in _args(chain, chain.gate, "LotResolved", events)}
     moves = defaultdict(list)
-    for lg in _logs(chain, chain.certs, "TransferSingle"):
-        moves[int(lg.args.id)].append((lg.args["from"], lg.args.to, int(lg.args.value)))
+    for a in _args(chain, chain.certs, "TransferSingle", events):
+        moves[int(a.id)].append((a["from"], a.to, int(a.value)))
     retired, withdrawn = defaultdict(int), defaultdict(int)
-    for lg in _logs(chain, chain.certs, "Retired"):
-        retired[int(lg.args.tokenId)] += int(lg.args.wh)
-    for lg in _logs(chain, chain.certs, "Withdrawn"):  # Code Manager rút: đốt có event và lý do riêng
-        withdrawn[int(lg.args.tokenId)] += int(lg.args.wh)
+    for a in _args(chain, chain.certs, "Retired", events):
+        retired[int(a.tokenId)] += int(a.wh)
+    for a in _args(chain, chain.certs, "Withdrawn", events):  # Code Manager rút: đốt có event và lý do riêng
+        withdrawn[int(a.tokenId)] += int(a.wh)
     rows = []
-    for lg in _logs(chain, chain.gate, "Issued"):
-        a = lg.args
+    for a in _args(chain, chain.gate, "Issued", events):
         tid, dev, day = int(a.tokenId), bytes(a.deviceId), int(a.day)
         cp = chain.devices.functions.deviceOf(dev).call()[0]
         key = keccak(bytes(cp) + day.to_bytes(32, "big"))
@@ -154,7 +167,7 @@ def main(argv: list[str]) -> int:
             verifier = None if c == "B1" else Verifier(c)
             ev = truncate(events, test_days[0], n_days)
             t0 = time.time()
-            log = pd.DataFrame(run_stream(chain, ev, sun, issuer_a, make_verdict(verifier, data, temps, slot_ends,
+            log = pd.DataFrame(run_stream(chain, ev, sun, issuer_a, make_verdict(verifier, data, temps, slot_ends, chain,
                                                                                     store), auditor=lambda cp, d: True))
             gas_rows += [{"config": c, "op": op, "gas": g} for op, g in chain.gas_log]
             lin = lineage(chain, store).assign(config=c)
@@ -179,7 +192,7 @@ def main(argv: list[str]) -> int:
         chain.lat_log = []
         chain.arrival_jitter_s = 2.0  # mỗi giao dịch đến sau một khoảng ngẫu nhiên đều trong [0, 2) giây
         ev = truncate(events, test_days[0], lat_days)
-        run_stream(chain, ev, sun, issuer_a, make_verdict(None, data, temps, slot_ends, store))
+        run_stream(chain, ev, sun, issuer_a, make_verdict(None, data, temps, slot_ends, chain, store))
         lat = pd.DataFrame(chain.lat_log, columns=["op", "seconds"])
     finally:
         node.close()

@@ -10,7 +10,7 @@
 Tập test `testset-v1` gồm 638 lô test trung thực (514 ngày quang, 80 mây vừa, 44 nhiều mây), chế độ R2. Lớp B chạy off-chain qua `rec/gate/sim.py`. Mọi ngưỡng chỉ chọn trên val (321 lô).
 
 - **Kết quả chính** là lần chạy đăng ký trước: đúng `spec-v1`, commit `b76c094`, lưu ở `artifacts/results/prereg/`.
-- Cột **hậu kiểm** là biến thể `day_only`, được thêm vào sau khi đã thấy test. Lý do, tiêu chí chọn (ghi trước khi chạy) và kết quả chọn nằm ở [manifests/CHANGES.md](manifests/CHANGES.md).
+- Cột **hậu kiểm** là biến thể `day_only`, được thêm vào sau khi đã thấy test. Lý do, tiêu chí chọn (ghi trước khi chạy) và kết quả chọn nằm ở [manifests/CHANGES.md](../manifests/CHANGES.md).
 
 Lệnh chạy lại:
 

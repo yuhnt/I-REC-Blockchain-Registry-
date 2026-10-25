@@ -20,9 +20,9 @@ import time
 import pandas as pd
 
 from rec import config
-from rec.experiments.runner import load_stream, plant_from_config, run_stream
 from rec.registry.base import DAY_S
 from rec.registry.sqlite_registry import SeparateRegistry, SqliteRegistry
+from rec.sim.runner import load_stream, plant_from_config, run_stream
 
 T_REC = (7, 30)
 LIFECYCLE = {"D6", "insider"}

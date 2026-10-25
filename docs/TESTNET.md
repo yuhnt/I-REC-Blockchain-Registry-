@@ -1,6 +1,6 @@
 # Trình diễn trên testnet Sepolia
 
-File này do `python -m rec.experiments.testnet` tự ghi sau mỗi lần `deploy`, `verify`, `demo`. Chỉ chứa thông tin công khai trên chain. Thí nghiệm E1–E3 vẫn chạy trên Hardhat cục bộ (RESULTS.md); Sepolia chỉ để tra cứu công khai.
+File này do `python -m rec.deploy.testnet` tự ghi sau mỗi lần `deploy`, `verify`, `demo`. Chỉ chứa thông tin công khai trên chain. Thí nghiệm E1–E3 vẫn chạy trên Hardhat cục bộ (RESULTS.md); Sepolia chỉ để tra cứu công khai.
 
 ## Contract
 

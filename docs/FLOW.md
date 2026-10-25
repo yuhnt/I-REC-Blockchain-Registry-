@@ -1,6 +1,6 @@
 # Luồng chạy chi tiết và giao diện
 
-Tài liệu thiết kế cho giai đoạn 3–5 (contract, lớp B, tích hợp, dashboard). Mô tả **ai gọi gì, theo thứ tự nào, trao đổi dữ liệu dạng gì**. Luật kiểm tra, ngưỡng và chỉ số nằm ở `SPEC.md`; danh sách module ở `PLAN.md`. Khi các tài liệu lệch nhau, SPEC là chuẩn.
+Tài liệu thiết kế cho giai đoạn 3–5 (contract, lớp B, tích hợp, dashboard). Mô tả **ai gọi gì, theo thứ tự nào, trao đổi dữ liệu dạng gì**. Luật kiểm tra, ngưỡng và chỉ số nằm ở `SPEC.md`; luật và ngưỡng đang chạy, theo thứ tự một lô đi qua, ở `DECISION_RULES.md`; danh sách module ở `PLAN.md`. Khi các tài liệu lệch nhau, SPEC là chuẩn.
 
 ## 1. Các vai và khóa
 
@@ -8,7 +8,7 @@ Tài liệu thiết kế cho giai đoạn 3–5 (contract, lớp B, tích hợp,
 |---|---|---|
 | **Chủ nhà máy (registrant)** | Nhận chứng chỉ; chuyển nhượng; có thể retire | Địa chỉ ví của nhà máy |
 | **Issuer** (`issuerA`, `issuerB`) | Đăng ký thiết bị; gửi bằng chứng của lô; gửi yêu cầu phát hành | Khóa issuer, có trong allowlist lúc deploy |
-| **Oracle O1–O4** | Đo, đóng gói chuỗi 15 phút, ký báo cáo ngày | R1: khóa O1 thuộc điện lực. R2: khóa O1–O3 thuộc chủ dự án. O4 luôn thuộc issuer |
+| **Oracle O1–O4** | Đo, đóng gói chuỗi 15 phút, ký báo cáo ngày. Mỗi oracle là một nút riêng (`rec/oracles/node.py`): nguồn riêng, khóa riêng, ghi chuỗi vào kho theo `data_root`; không nút nào gửi giao dịch | R1: khóa O1 thuộc điện lực. R2: khóa O1–O3 thuộc chủ dự án. O4 luôn thuộc issuer |
 | **Verifier** | Chạy lớp B (off-chain) trên 4 báo cáo của một lô; ký verdict | Khóa verifier, thuộc issuer |
 | **Production Auditor** | Chứng chỉ chờ duyệt (bấm một dòng để xem chi tiết: lượng xin, cả lô, 4 báo cáo oracle có kiểm hash, cờ, reason code, biểu đồ O1–O2 và O3–O4); **mọi lô đã gửi**, kể cả lô sạch, lọc theo trạng thái; **yêu cầu bị lớp A từ chối** kèm lý do; lô đã phân xử; chứng chỉ đang bị tạm khóa | Duyệt hoặc bác **cả lô** (`resolveReview`, kèm hash của lý do) |
 | **Code Manager** | Tạm khóa / mở khóa / rút chứng chỉ chưa retire (I-REC §11) | Khóa riêng, tách khỏi mọi issuer |
@@ -237,7 +237,7 @@ Verifier: `rec/gate/verifier.py` đọc tham số đã khóa (`artifacts/model/<
 
 Cài đặt: `rec/registry/base.py`, `sqlite_registry.py` (hai biến thể B0), `chain_registry.py` (web3.py, gửi giao dịch bằng RPC thô, snapshot sau deploy và quay về trước mỗi dòng). Ký EIP-712 ở `rec/oracles/signer.py`. Trong b0_separate, báo cáo O1 của điện lực (R1) được gửi tới CSDL của mọi issuer, và chuyển đăng ký (L3) là đóng ở CSDL cũ rồi mở cùng mã ở CSDL mới. `reconcile()` chạy một lần ở cuối dòng; exposure window được tính từ thời điểm MINT tới lần đối soát kế tiếp theo chu kỳ T_rec.
 
-## 11. Bộ chạy mô phỏng (`rec/experiments/runner.py`, E1 ở `rec/experiments/e1.py`)
+## 11. Bộ chạy mô phỏng (`rec/sim/runner.py`, E1 ở `rec/experiments/e1.py`)
 
 **Đầu vào:** `events.jsonl` của generator (sắp theo `t`), tên backend, cấu hình lớp B (B1, B2, Proposed, A1, A2), chế độ (R1 / R2), tỉ lệ kiểm tra ngẫu nhiên p.
 
@@ -259,18 +259,21 @@ Cài đặt: `rec/registry/base.py`, `sqlite_registry.py` (hai biến thể B0),
 - **Nhật ký quyết định** (`artifacts/runs/<run>/decisions.csv`): `t, backend, config, req_id, lot_key, decision, reason, wh, tx_hash, gas`. `rec/metrics` chỉ đọc file này cùng file nhãn.
 - **E2 chạy off-chain:** cùng runner, nhưng backend là `gate/sim.py` (cài lại lớp A bằng Python). **Test parity** chạy một mẫu ca qua cả `chain` lẫn `gate/sim.py`, và đòi nhật ký quyết định trùng nhau 100%.
 
-## 12. Dashboard (`dashboard/app.py`)
+## 12. Dashboard (`dashboard/`)
 
-Dựng chain demo bằng `python -m rec.experiments.demo` (node Hardhat chạy nền, ghi `artifacts/demo/deployment.json`), rồi `streamlit run dashboard/app.py`. Demo gồm:
+Dựng chain demo bằng `python -m rec.deploy.demo` (node Hardhat chạy nền, ghi `artifacts/demo/deployment.json`), rồi `streamlit run dashboard/app.py`. Demo gồm:
 - 20 ngày dòng hợp lệ (cấu hình Proposed), có chuyển nhượng và retire;
 - D1, D4a bị REJECT;
 - ba lô chờ auditor: O1 khai tăng 45% (k = 1), cả ba nguồn tại chỗ tăng 20% (k = 3), và một lô trung thực bị REVIEW nhầm. Mã yêu cầu trung tính, không lộ nhãn;
-- một lần tạm khóa và rút của Code Manager.
+- một lần tạm khóa và rút của Code Manager; issuer thử gọi `withdraw` (insider) và bị revert.
+
+Danh sách kịch bản đã chạy được ghi vào `deployment.json` → `scenarios`. Mã: `dashboard/app.py` chỉ chọn trang; `onchain.py` kết nối, đọc log theo khúc, gửi giao dịch; `tables.py` dựng bảng từ event; `components.py` khối dùng chung (bằng chứng của lô, chuỗi truy vết chứng chỉ, tuyên bố retire); `views/` mỗi trang một file.
 
 Mỗi vai một trang, chọn ở thanh bên. Trong demo, giao dịch được ký bằng tài khoản đã mở khóa của node Hardhat; khi vận hành thật, mỗi bên ký bằng ví riêng.
 
 | Vai | Xem | Làm |
 |---|---|---|
+| **Truy vết kịch bản** | Mỗi kịch bản demo (dòng hợp lệ, D1, D4a, các lô REVIEW, Code Manager, insider): điểm chặn kỳ vọng theo `DECISION_RULES.md`, kết quả đọc từ event, khớp hay không; bấm một dòng để xem chứng chỉ bị trùng, phép tính ngân sách CP, hoặc bằng chứng của lô. Trang này lộ nhãn kịch bản nên dành cho người trình bày, không phải auditor. Một yêu cầu gửi nhiều lần (gửi lại, hoặc chạy lại demo) được xét theo lần gửi cuối | — |
 | **Công khai** | Tổng quan (MWh phát hành và retire, số REJECT, REVIEW, thao tác Code Manager); bảng mọi chứng chỉ, bấm một dòng để xem chuỗi truy vết; nhật ký công khai (REJECT kèm lý do, Code Manager, phân xử của auditor); lineage completeness | — |
 | **Nhà máy** | Tổng: sản lượng công tơ, đã phát hành, đang giữ, đã chuyển nhượng, số yêu cầu chờ auditor. **Sản xuất theo ngày**: công tơ O1, đã phát hành, số chứng chỉ, số yêu cầu bị từ chối, cờ và trạng thái lô; bấm một ngày để xem kết cục từng thiết bị (đã phát hành, bị từ chối kèm lý do, bị giữ), 4 báo cáo oracle và biểu đồ công tơ so với inverter, bức xạ tại chỗ so với vệ tinh. **Bị từ chối / bị giữ**: thời điểm, thiết bị, issuer, lý do. **Đã chuyển nhượng**: người nhận, chứng chỉ, lượng, thời điểm, giao dịch | Chuyển nhượng cho người mua (`safeTransferFrom`; thanh toán nằm ngoài hệ thống); retire nếu tự dùng |
 | **Người mua** | Chứng chỉ đang giữ; **chứng chỉ trên hệ thống** (lượng nhà máy còn giữ, có thể mua); **lịch sử nhận** (từ ai, khi nào, giao dịch); các tuyên bố đã retire, mỗi tuyên bố dựng lại từ event `Retired` | Chuyển tiếp; retire (I-REC §10, không đảo ngược) |
@@ -287,5 +290,6 @@ Các bảng là bảng bấm chọn dòng; sau mỗi giao dịch, lựa chọn �
 | `contracts/test/review.ts` | Lô REVIEW: `IssueHeld`; auditor duyệt → MINT; auditor bác → `IssueRejected(LOT_REJECTED)`; người khác gọi `resolveReview` → revert |
 | `contracts/test/code_manager.ts` | Tạm khóa chặn chuyển nhượng và retire; `withdraw` trả lại ngân sách và mở lại khóa; không rút được chứng chỉ đã retire; Code Manager không mint được |
 | `contracts/test/irec_*.ts` | Mỗi điều khoản trong `COMPLIANCE.md` (tên test mang mã điều khoản) |
+| `tests/test_oracles.py` | 4 nút có 4 khóa khác nhau; mỗi nút lưu chuỗi đúng `data_root` và ký đúng địa chỉ của nó; nút O1 không ký báo cáo O2, chữ ký ép bằng khóa O1 không khớp địa chỉ O2; sửa báo cáo sau khi ký hoặc đổi chainId làm chữ ký sai |
 | `tests/test_encoding.py` | `data_root` giống nhau giữa Python và Solidity; slot thiếu mã hóa `-1`; ngày đổi giờ 92/100 slot |
 | `tests/test_verifier.py`, `rec/experiments/parity.py` | Cờ của verifier trùng `decide` của E2; quyết định của chain trùng `gate/sim.py` trên mẫu ca E2a, kể cả sau khi auditor phân xử |

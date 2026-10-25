@@ -34,11 +34,17 @@ Máy hiện có: Python 3.11.9 (pandas 2.3, numpy 2.3, PyYAML), Node 22.19, npm 
 
 ```
 source/
-├─ PLAN.md
 ├─ SPEC.md                   # đặc tả mốc 1: chỉ số, gán nhãn, ngưỡng, quyết định đã chốt
-├─ FLOW.md                   # luồng chạy, giao diện contract, định dạng EIP-712, runner, dashboard
 ├─ COMPLIANCE.md             # bảng truy vết điều khoản I-REC → hiện thực, test
-├─ README.md                 # cách cài, cách chạy từng thí nghiệm
+├─ README.md                 # bắt đầu từ đâu, cách cài, cách chạy từng thí nghiệm
+├─ docs/
+│  ├─ PLAN.md                # file này
+│  ├─ FLOW.md                # luồng chạy, giao diện contract, định dạng EIP-712, runner, dashboard
+│  ├─ DECISION_RULES.md      # luật và ngưỡng đang chạy, mã lý do, theo thứ tự một lô đi qua hệ thống
+│  ├─ RESULTS.md             # kết quả E1, E2, E3
+│  ├─ TESTNET.md             # bản deploy trên Sepolia (tự ghi bởi rec.deploy.testnet)
+│  ├─ figures/               # make_figures.py vẽ Hình 1, Hình 2 của proposal (PNG + SVG)
+│  └─ kiem_tay/              # hình kiểm tay các ngày inverter ngừng phát
 ├─ pyproject.toml            # package `rec` + dependencies
 ├─ configs/
 │  ├─ paths.yaml             # trỏ tới ../dataset, artifacts/
@@ -56,20 +62,21 @@ source/
 │  ├─ data/                  # load_pvdaq, load_nsrdb, preprocess, daytype
 │  ├─ physics/               # pvwatts.py: PVWatts(NSRDB) hiệu chỉnh trên train
 │  ├─ generator/             # honest, attacks, labels, checks, cli
-│  ├─ oracles/               # sources (O1–O4 đọc từ dữ liệu), signer (EIP-712)
+│  ├─ oracles/               # encoding (data_root), store (kho file), signer (EIP-712), node (4 nút O1–O4, mỗi nút một khóa)
 │  ├─ checks/                # completeness ①, consistency (a), ceiling_pvlib, ceiling_ai
 │  ├─ model/                 # features, train, calibrate (hồi quy phân vị)
 │  ├─ gate/                  # sim.py: DecisionGate mô phỏng ①–④; profiles B0/B1/B2/Proposed; auditor.py
-│  ├─ registry/              # base (interface), sqlite_registry (B0 tách/chung), chain_registry (web3)
+│  ├─ registry/              # base (interface), sqlite_registry (B0 tách/chung), chain_registry (Hardhat, Sepolia)
+│  ├─ sim/                   # runner: đưa dòng sự kiện qua một backend
+│  ├─ deploy/                # demo (chain cục bộ cho dashboard), testnet (Sepolia)
 │  ├─ metrics/               # dcr, oir, lmax, detection, bootstrap
-│  └─ experiments/           # e1, e2a, e2b, e3, ablation, run_all
+│  └─ experiments/           # e1, e2, e3, parity, figures, run_all
 ├─ contracts/                # Hardhat project
 │  ├─ contracts/             # DeviceRegistry, CertificateRegistry, DecisionGate
 │  ├─ test/                  # D1–D6, insider, chữ ký, ngân sách CP
 │  ├─ scripts/deploy.ts
 │  └─ hardhat.config.ts
-├─ dashboard/app.py          # Streamlit + web3.py
-├─ docs/figures/             # make_figures.py vẽ Hình 1, Hình 2 của proposal (PNG + SVG)
+├─ dashboard/                # Streamlit + web3.py: app.py chọn trang; onchain, tables, components; views/ mỗi vai một file
 ├─ tests/                    # pytest
 ├─ manifests/                # sha256 của tập test, mô hình, kết quả (commit)
 └─ artifacts/                # parquet, tập test, mô hình, kết quả (gitignore)
@@ -213,9 +220,10 @@ Luật công suất ③ và luật kỳ phát hành thuộc lớp A (contract), 
 
 E2a gồm hàng chục nghìn quyết định. Chạy trên chain thì quá chậm, nên E2 chạy off-chain và dựa vào test parity để chứng minh kết quả giống chain.
 
-### 4.8 Dashboard (`dashboard/app.py`)
+### 4.8 Dashboard (`dashboard/`)
 
-Streamlit + web3.py đọc event từ Hardhat:
+Streamlit + web3.py đọc event từ Hardhat cục bộ hoặc Sepolia. Mỗi vai một trang (`dashboard/views/`), cộng trang
+"Truy vết kịch bản" đối chiếu điểm chặn kỳ vọng của từng kịch bản demo với kết quả on-chain:
 
 - lineage từng chứng chỉ: thiết bị → báo cáo O1–O4 (mở file gốc theo `data_root`) → verdict + reason code → mint → transfer → retire;
 - hàng đợi REVIEW cho auditor, kèm bằng chứng (cờ, reason code, báo cáo O1–O4); lý do REJECT;
@@ -227,10 +235,10 @@ Streamlit + web3.py đọc event từ Hardhat:
 |---|---|---|
 | 0. Dựng repo | `git init`; `pyproject.toml`; Hardhat trong `contracts/`; `.gitignore`; README cài đặt; `rec/schema.py`, `rec/timeutil.py` | **Xong** (commit `b2a985e`) |
 | 1. Đặc tả (mốc 1) | `split.yaml`, `scenarios.yaml`, `features.yaml`, `thresholds.yaml`; `SPEC.md`; `COMPLIANCE.md`; `rec/config.py` kiểm tính nhất quán; `configs/days.csv`, `days_dropped.csv` từ `rec.data.days` | **Tag `spec-v1`** + `manifests/spec-v1.sha256` |
-| 2. Dữ liệu + generator (mốc 2) | `rec/data`, `rec/physics`; tính lại sai lệch vệ tinh và độ rộng trần theo loại ngày trên 2018–2021 (ngày địa phương); ~~kiểm tay 50 ngày inverter ngừng phát~~ (đã bỏ; giữ dữ liệu nguyên trạng, bộ hình minh họa ở [docs/kiem_tay/](docs/kiem_tay/README.md)); `rec/generator` + bộ kiểm tra; sinh tập test | Bộ kiểm tra generator qua; **tag `testset-v1`** + sha256 tập test |
-| 3. Lớp A | 3 contract + test Hardhat (mang mã điều khoản I-REC); `sqlite_registry` (2 biến thể); `chain_registry`; E1 | D1–D6 bị chặn đúng điểm chặn trên SQLite dùng chung và chain; L1, L3, L4 không bị REJECT; bảng E1 ra được. **Đã làm:** 3 contract, 37 test Hardhat mang mã điều khoản, `rec/registry/` (3 backend), `rec/experiments/runner.py`, `e1.py`; kết quả ở [RESULTS.md](RESULTS.md) |
+| 2. Dữ liệu + generator (mốc 2) | `rec/data`, `rec/physics`; tính lại sai lệch vệ tinh và độ rộng trần theo loại ngày trên 2018–2021 (ngày địa phương); ~~kiểm tay 50 ngày inverter ngừng phát~~ (đã bỏ; giữ dữ liệu nguyên trạng, bộ hình minh họa ở [docs/kiem_tay/](kiem_tay/README.md)); `rec/generator` + bộ kiểm tra; sinh tập test | Bộ kiểm tra generator qua; **tag `testset-v1`** + sha256 tập test |
+| 3. Lớp A | 3 contract + test Hardhat (mang mã điều khoản I-REC); `sqlite_registry` (2 biến thể); `chain_registry`; E1 | D1–D6 bị chặn đúng điểm chặn trên SQLite dùng chung và chain; L1, L3, L4 không bị REJECT; bảng E1 ra được. **Đã làm:** 3 contract, 37 test Hardhat mang mã điều khoản, `rec/registry/` (3 backend), `rec/sim/runner.py`, `e1.py`; kết quả ở [RESULTS.md](RESULTS.md) |
 | 4. Lớp B | `oracles` + signer; `checks`; `model` (train, calibrate); `gate/sim.py`, `gate/auditor.py`; `metrics`; E2a, E2b chạy off-chain | Bảng E2a, E2b có khoảng tin cậy, ở mọi mức tỉ lệ REVIEW nhầm; test chặn rò đặc trưng O1–O3 qua. **Đã chạy off-chain** (commit `b76c094` là bản đăng ký trước; biến thể hậu kiểm `day_only`); kết quả ở [RESULTS.md](RESULTS.md). Còn `gate/auditor.py` |
-| 5. Tích hợp | Verifier ký `Verdict`; nối vào `DecisionGate`; kho file theo `data_root`; test parity; E3; dashboard; ablation | Parity 100%; bảng E3; dashboard hiện đủ lineage. **Đã làm:** `gate/verifier.py`, `oracles/store.py`, `experiments/parity.py` (0 lệch trên 5.484 yêu cầu), `experiments/e3.py`, `experiments/demo.py`, `dashboard/app.py`; ablation đã có trong E2. `gate/auditor.py` mô phỏng kiểm tra ngẫu nhiên p (E2a, E2b) |
+| 5. Tích hợp | Verifier ký `Verdict`; nối vào `DecisionGate`; kho file theo `data_root`; test parity; E3; dashboard; ablation | Parity 100%; bảng E3; dashboard hiện đủ lineage. **Đã làm:** `gate/verifier.py`, `oracles/store.py`, `experiments/parity.py` (0 lệch trên 5.484 yêu cầu), `experiments/e3.py`, `deploy/demo.py`, `dashboard/`; ablation đã có trong E2. Bốn oracle chạy thành 4 nút độc lập (`oracles/node.py`), backend chain chỉ chuyển tiếp chữ ký. `gate/auditor.py` mô phỏng kiểm tra ngẫu nhiên p (E2a, E2b) |
 | 6. Kết quả | `run_all` sinh lại toàn bộ bảng và hình từ tag; `manifests/results-v1.sha256` | Chạy lại trên máy khác ra cùng số. **Đã làm:** `rec/experiments/run_all.py`, `figures.py`, mốc `results-v1` trong `rec/manifest.py` |
 
 **Phụ thuộc:**
@@ -278,7 +286,7 @@ python -m rec.experiments.e2 --select             # chọn biến thể hậu ki
 python -m rec.experiments.e2 --variant day_only   # biến thể hậu kiểm đã chọn
 python -m rec.experiments.parity                 # mẫu 50 ca mỗi kịch bản E2a qua chain và gate/sim.py
 python -m rec.experiments.e3                     # gas, lineage (365 ngày), độ trễ (30 ngày, block 2 giây)
-python -m rec.experiments.demo                   # chain demo cho dashboard
+python -m rec.deploy.demo                   # chain demo cho dashboard
 streamlit run dashboard/app.py
 python -m rec.experiments.run_all                 # toàn bộ, khoảng 1 giờ; --check so với manifests/results-v1.sha256
 ```

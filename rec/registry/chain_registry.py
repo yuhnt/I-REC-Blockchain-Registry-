@@ -22,7 +22,9 @@ from web3 import Web3
 from web3.exceptions import ContractCustomError, ContractLogicError
 
 from rec import config
-from rec.oracles.signer import Signer, b32, hardhat_account, lot_key, report_struct, reports_hash, struct_hash, token_id
+from rec.oracles.node import oracle_nodes
+from rec.oracles.signer import (HARDHAT_MNEMONIC, Signer, b32, hardhat_account, lot_key, report_struct, reports_hash,
+                                struct_hash, token_id)
 from rec.registry.base import LotEvidence, Outcome, Plant, Registry
 from rec.schema import RejectReason
 
@@ -55,7 +57,7 @@ class HardhatNode:
         self.port = port
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:  # không dùng nhầm một node khác đang chạy
             if probe.connect_ex(("127.0.0.1", port)) == 0:
-                raise RuntimeError(f"cổng {port} đã có tiến trình khác; dừng node cũ (ví dụ rec.experiments.demo --stop)"
+                raise RuntimeError(f"cổng {port} đã có tiến trình khác; dừng node cũ (ví dụ rec.deploy.demo --stop)"
                                    " hoặc chọn --port khác")
         env = dict(os.environ, REC_INITIAL_DATE=initial_date)
         if interval_ms:
@@ -100,6 +102,9 @@ class ChainRegistry(Registry):
         else:
             self._deploy()
         self.signer = Signer(self.gate.address, self.w3.eth.chain_id)  # domain EIP-712 theo đúng mạng đang dùng
+        # Bốn nút oracle độc lập, mỗi nút giữ khóa của nó (rec/oracles/node.py). Backend chỉ chuyển tiếp chữ ký.
+        self.oracles = oracle_nodes(next(iter(self.plant.cp_capacity_w)), self.gate.address, self.w3.eth.chain_id,
+                                    self.mnemonic)
         self._errors = self._error_selectors()
         self._topics = {name: keccak(text=sig) for name, sig in (
             ("Issued", "Issued(bytes32,uint256,bytes32,uint32,uint64,address)"),
@@ -114,7 +119,8 @@ class ChainRegistry(Registry):
         """Node Hardhat: các vai dùng tài khoản đã mở khóa; oracle và verifier ký bằng khóa kiểm thử công khai."""
         accts = self.w3.eth.accounts
         self.addr = {role: Web3.to_checksum_address(accts[i]) for i, role in enumerate(ROLES)}
-        self.keys = {role: hardhat_account(ROLES.index(role)) for role in ("O1", "O2", "O3", "O4", "verifier")}
+        self.mnemonic = HARDHAT_MNEMONIC
+        self.keys = {"verifier": hardhat_account(ROLES.index("verifier"))}
 
     def _take_snapshot(self):
         return self._rpc("evm_snapshot")
@@ -244,8 +250,9 @@ class ChainRegistry(Registry):
 
     def evidence_args(self, ev: LotEvidence):
         structs = [report_struct(r) for r in ev.reports]
-        sigs = [b"" if s["oracle"] == 0 else self.signer.sign(self.keys[f"O{i + 1}"], "OracleReport", s)
-                for i, s in enumerate(structs)]
+        # Báo cáo đã được nút oracle ký thì dùng nguyên chữ ký; báo cáo chưa ký (dòng sự kiện của generator) thì
+        # nhờ đúng nút oracle của nó ký. Backend không giữ khóa oracle.
+        sigs = [b"" if r is None else (r.signature or self.oracles[r.oracle].sign(r).signature) for r in ev.reports]
         verdict = {"lotKey": lot_key(ev.cp_id, ev.day), "flags": ev.flags, "ceilingWh": ev.ceiling_wh,
                    "sunSlots": ev.sun_slots, "reportsHash": reports_hash(structs), "modelHash": ev.model_hash,
                    "reasonsHash": ev.reasons_hash}
@@ -339,9 +346,10 @@ class TestnetRegistry(ChainRegistry):
         super().__init__(plant, url, deployment=deployment)
 
     def _setup_accounts(self) -> None:
+        self.mnemonic = self._mnemonic
         self.accounts = {role: hardhat_account(i, self._mnemonic) for i, role in enumerate(ROLES)}
         self.addr = {role: a.address for role, a in self.accounts.items()}
-        self.keys = {role: self.accounts[role] for role in ("O1", "O2", "O3", "O4", "verifier")}
+        self.keys = {"verifier": self.accounts["verifier"]}
 
     def _take_snapshot(self):
         return None

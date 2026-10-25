@@ -5,12 +5,12 @@ Mnemonic sinh 15 tài khoản theo đúng thứ tự vai của `rec/registry/cha
 Lệnh này **không bao giờ in** mnemonic, khóa riêng hay URL RPC (URL của Alchemy chứa API key).
 
 Các lệnh (chạy theo thứ tự; mọi lệnh gửi giao dịch đều tốn ETH test và ghi công khai lên Sepolia):
-  python -m rec.experiments.testnet addresses     in địa chỉ, số dư và vai nào cần ETH test (không gửi gì)
-  python -m rec.experiments.testnet fund          chia ETH từ deployer cho các vai cần gửi giao dịch
-  python -m rec.experiments.testnet deploy        deploy 3 contract, ghi artifacts/testnet/deployment.json
-  python -m rec.experiments.testnet verify        đăng mã nguồn lên Sepolia Etherscan (cần ETHERSCAN_API_KEY)
-  python -m rec.experiments.testnet demo [--days 3]   nạp vài ngày dữ liệu demo (một lần cho mỗi lần deploy)
-  python -m rec.experiments.testnet status        in địa chỉ contract và liên kết Etherscan
+  python -m rec.deploy.testnet addresses     in địa chỉ, số dư và vai nào cần ETH test (không gửi gì)
+  python -m rec.deploy.testnet fund          chia ETH từ deployer cho các vai cần gửi giao dịch
+  python -m rec.deploy.testnet deploy        deploy 3 contract, ghi artifacts/testnet/deployment.json
+  python -m rec.deploy.testnet verify        đăng mã nguồn lên Sepolia Etherscan (cần ETHERSCAN_API_KEY)
+  python -m rec.deploy.testnet demo [--days 3]   nạp vài ngày dữ liệu demo (một lần cho mỗi lần deploy)
+  python -m rec.deploy.testnet status        in địa chỉ contract và liên kết Etherscan
 deploy, verify, demo tự ghi docs/TESTNET.md (chỉ thông tin công khai) để commit cho nhóm.
 Sau đó: streamlit run dashboard/app.py, chọn chain "Sepolia" ở thanh bên.
 """
@@ -128,7 +128,7 @@ def cmd_fund(env: dict[str, str]) -> int:
 
 
 def _plant():
-    from rec.experiments.runner import plant_from_config
+    from rec.sim.runner import plant_from_config
     return plant_from_config(config.load("scenarios")["plant"])
 
 
@@ -141,7 +141,7 @@ def _jsonable(x):
 
 
 def cmd_deploy(env: dict[str, str], argv: list[str]) -> int:
-    from rec.experiments.demo import deployment_info
+    from rec.deploy.demo import deployment_info
     from rec.registry.chain_registry import TestnetRegistry
     _w3(env)
     if dep_path().exists() and "--force" not in argv:
@@ -175,7 +175,7 @@ def cmd_verify(env: dict[str, str]) -> int:
 
 
 def cmd_demo(env: dict[str, str], argv: list[str]) -> int:
-    from rec.experiments.demo import populate
+    from rec.deploy.demo import populate
     from rec.registry.chain_registry import TestnetRegistry
     dep = json.loads(dep_path().read_text(encoding="utf-8"))
     if dep.get("demo_loaded") and "--force" not in argv:
@@ -201,7 +201,7 @@ def write_notes(dep: dict) -> Path:
     ex = dep.get("explorer", EXPLORER)
     c = dep["contracts"]
     lines = ["# Trình diễn trên testnet Sepolia", "",
-             "File này do `python -m rec.experiments.testnet` tự ghi sau mỗi lần `deploy`, `verify`, `demo`. "
+             "File này do `python -m rec.deploy.testnet` tự ghi sau mỗi lần `deploy`, `verify`, `demo`. "
              "Chỉ chứa thông tin công khai trên chain. Thí nghiệm E1–E3 vẫn chạy trên Hardhat cục bộ "
              "(RESULTS.md); Sepolia chỉ để tra cứu công khai.", "",
              "## Contract", "",
@@ -243,7 +243,7 @@ def _save(dep: dict) -> None:
 
 def cmd_status(env: dict[str, str]) -> int:
     if not dep_path().exists():
-        raise SystemExit("chưa deploy (python -m rec.experiments.testnet deploy)")
+        raise SystemExit("chưa deploy (python -m rec.deploy.testnet deploy)")
     dep = json.loads(dep_path().read_text(encoding="utf-8"))
     print(f"Sepolia, từ block {dep['from_block']}:")
     for name, addr in dep["contracts"].items():

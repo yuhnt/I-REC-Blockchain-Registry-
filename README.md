@@ -1,11 +1,21 @@
 # Registry chứng chỉ I-REC chống double counting
 
-Kế hoạch code, cấu trúc thư mục và các giai đoạn nằm trong [PLAN.md](PLAN.md). Luồng chạy từng bước, giao diện contract và định dạng message nằm trong [FLOW.md](FLOW.md).
-
 Hệ thống có hai lớp tách rời:
 
 - **Lớp A – sổ cái chung** (`contracts/`, `rec/registry/`): khóa (thiết bị, ngày), ngân sách năng lượng tại điểm đấu nối (CP), trạng thái vòng đời. Lớp này chặn double counting.
-- **Lớp B – kiểm tra số liệu** (`rec/checks/`, `rec/model/`, `rec/gate/`): multi-oracle O1–O4 và trần sản lượng học từ vệ tinh. Lớp này phát hiện khai khống.
+- **Lớp B – kiểm tra số liệu** (`rec/oracles/`, `rec/checks/`, `rec/model/`, `rec/gate/`): bốn nút oracle O1–O4 độc lập và trần sản lượng học từ vệ tinh. Lớp này phát hiện khai khống.
+
+## Bắt đầu từ đâu
+
+Người mới đọc theo thứ tự:
+
+1. [docs/FLOW.md](docs/FLOW.md): một ngày sản xuất đi qua hệ thống thế nào, ai ký gì, contract nhận gì.
+2. [docs/DECISION_RULES.md](docs/DECISION_RULES.md): từng luật và ngưỡng đang chạy, mã lý do từ chối, bảng tra "thấy event này nghĩa là gì".
+3. [docs/RESULTS.md](docs/RESULTS.md): kết quả E1, E2, E3 và cách đọc.
+4. [SPEC.md](SPEC.md) và [COMPLIANCE.md](COMPLIANCE.md): đặc tả đã khóa trước khi chạy thí nghiệm, đối chiếu điều khoản I-REC.
+5. [docs/PLAN.md](docs/PLAN.md): các giai đoạn và những gì đã làm; [docs/TESTNET.md](docs/TESTNET.md): bản deploy trên Sepolia.
+
+Muốn xem chạy thật: dựng chain demo (`python -m rec.deploy.demo`), mở dashboard, vào trang **Truy vết kịch bản** để thấy từng kịch bản bị chặn ở đâu, rồi sang trang của từng vai.
 
 ## Cài đặt
 
@@ -104,7 +114,7 @@ Chạy E1 (cùng dòng sự kiện qua b0_separate, b0_shared và chain; backend
 .venv/Scripts/python -m rec.experiments.e1 --metrics-only
 ```
 
-Chạy E2 off-chain (khớp lớp B trên train, chọn ngưỡng trên val, đánh giá trên tập test đã khóa). Kết quả ghi vào `artifacts/results/<biến thể>/`, tóm tắt ở [RESULTS.md](RESULTS.md):
+Chạy E2 off-chain (khớp lớp B trên train, chọn ngưỡng trên val, đánh giá trên tập test đã khóa). Kết quả ghi vào `artifacts/results/<biến thể>/`, tóm tắt ở [RESULTS.md](docs/RESULTS.md):
 
 ```bash
 .venv/Scripts/python -m rec.experiments.e2 --variant prereg
@@ -117,18 +127,24 @@ Giai đoạn 5 (cần Hardhat; mỗi lệnh tự khởi động node):
 ```bash
 .venv/Scripts/python -m rec.experiments.parity    # chain so với gate/sim.py trên mẫu ca E2a
 .venv/Scripts/python -m rec.experiments.e3        # gas, lineage completeness, độ trễ ở block 2 giây
-.venv/Scripts/python -m rec.experiments.demo      # dựng chain demo, node chạy tiếp; dừng bằng --stop
+.venv/Scripts/python -m rec.deploy.demo           # dựng chain demo, node chạy tiếp; dừng bằng --stop
 .venv/Scripts/streamlit run dashboard/app.py
+```
+
+Chạy riêng một nút oracle trên một ngày (in báo cáo đã ký, địa chỉ ký, kết quả kiểm chữ ký và file 15 phút trong kho):
+
+```bash
+.venv/Scripts/python -m rec.oracles.node --oracle O2 --day 18993
 ```
 
 Trình diễn trên testnet Sepolia (tùy chọn; thí nghiệm vẫn chạy trên Hardhat cục bộ). Cần `contracts/.env` (không commit) có `SEPOLIA_RPC_URL` (endpoint Alchemy cho Ethereum Sepolia), `TESTNET_MNEMONIC` (12 từ, ví mới chỉ dùng cho testnet) và tùy chọn `ETHERSCAN_API_KEY`. Các lệnh không in mnemonic, khóa riêng hay URL RPC:
 
 ```bash
-.venv/Scripts/python -m rec.experiments.testnet addresses   # địa chỉ 15 vai; xin ETH test từ faucet vào deployer (#0)
-.venv/Scripts/python -m rec.experiments.testnet fund        # chia ETH từ deployer cho các vai gửi giao dịch
-.venv/Scripts/python -m rec.experiments.testnet deploy      # deploy 3 contract (khoảng 0,035 ETH test)
-.venv/Scripts/python -m rec.experiments.testnet verify      # đăng mã nguồn lên Sepolia Etherscan
-.venv/Scripts/python -m rec.experiments.testnet demo        # 3 ngày dữ liệu demo (khoảng 60 giao dịch, 15–20 phút)
+.venv/Scripts/python -m rec.deploy.testnet addresses   # địa chỉ 15 vai; xin ETH test từ faucet vào deployer (#0)
+.venv/Scripts/python -m rec.deploy.testnet fund        # chia ETH từ deployer cho các vai gửi giao dịch
+.venv/Scripts/python -m rec.deploy.testnet deploy      # deploy 3 contract (khoảng 0,035 ETH test)
+.venv/Scripts/python -m rec.deploy.testnet verify      # đăng mã nguồn lên Sepolia Etherscan
+.venv/Scripts/python -m rec.deploy.testnet demo        # 3 ngày dữ liệu demo (khoảng 60 giao dịch, 15–20 phút)
 ```
 
 Sau đó mở dashboard và chọn chain "Sepolia (testnet)" ở thanh bên; mỗi chứng chỉ có liên kết sang Sepolia Etherscan. Các lệnh `deploy`, `verify`, `demo` tự ghi [docs/TESTNET.md](docs/TESTNET.md) (địa chỉ contract, block, liên kết Etherscan, tóm tắt demo; không có khóa hay URL RPC). Commit file này sau khi chạy.
@@ -159,12 +175,21 @@ Lệnh này ghi `mo_hinh_de_xuat` và `so_do_thuc_nghiem` (PNG và SVG) vào `do
 
 ```
 source/
-├─ PLAN.md, SPEC.md, FLOW.md, COMPLIANCE.md, RESULTS.md, README.md, pyproject.toml, requirements-lock.txt
+├─ README.md, SPEC.md, COMPLIANCE.md, pyproject.toml, requirements-lock.txt   # SPEC, COMPLIANCE nằm trong manifest spec-v1
+├─ docs/           # FLOW, DECISION_RULES, RESULTS, PLAN, TESTNET; figures/ (hình proposal), kiem_tay/ (kiểm tay ngày lỗi)
 ├─ configs/        # paths, split, days.csv, scenarios, features, thresholds
-├─ rec/            # schema, timeutil, config, manifest; data/, oracles/, generator/, physics/, checks/, model/, gate/, metrics/, experiments/
+├─ rec/
+│  ├─ data/, physics/       # đọc PVDAQ, NSRDB; pvlib
+│  ├─ oracles/              # encoding, store (kho file theo data_root), signer (EIP-712), node (4 nút O1–O4)
+│  ├─ generator/            # dòng sự kiện và kịch bản tấn công (tập test đã khóa)
+│  ├─ checks/, model/, gate/   # lớp B: nhất quán, trần AI, verifier, auditor, DecisionGate mô phỏng
+│  ├─ registry/             # backend: CSDL tách biệt, CSDL chung, chain (Hardhat, Sepolia)
+│  ├─ sim/                  # runner: đưa dòng sự kiện qua một backend
+│  ├─ deploy/               # demo (chain cục bộ cho dashboard), testnet (Sepolia)
+│  ├─ experiments/          # E1, E2, E3, parity, hình, run_all
+│  └─ metrics/
+├─ dashboard/      # app.py (chọn trang), onchain, tables, components; views/ mỗi vai một file + truy vết kịch bản
 ├─ tests/          # pytest
 ├─ manifests/      # hash của từng mốc, CHANGES.md
-├─ dashboard/      # Streamlit theo vai: công khai, nhà máy, người mua, issuer, Production Auditor
-├─ docs/figures/   # script vẽ hình của proposal
 └─ contracts/      # Hardhat: DeviceRegistry, CertificateRegistry, DecisionGate; test/ theo điều khoản I-REC
 ```

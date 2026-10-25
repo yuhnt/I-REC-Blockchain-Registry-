@@ -20,7 +20,6 @@ import pandas as pd
 
 from rec import config
 from rec.experiments.e2 import _lot_row
-from rec.experiments.runner import plant_from_config
 from rec.gate.sim import PROFILES, device_caps, layer_a
 from rec.gate.verifier import Verifier
 from rec.generator.cases_e2 import apply_case
@@ -29,6 +28,7 @@ from rec.metrics.e2 import decide
 from rec.oracles.store import FileStore
 from rec.registry.base import LotEvidence
 from rec.schema import Device, IssueRequest
+from rec.sim.runner import plant_from_config
 
 CONFIGS = ("B1", "B2", "Proposed")
 
