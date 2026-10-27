@@ -9,7 +9,7 @@ from dashboard import state as S
 from dashboard.components import certificate_detail
 from dashboard.onchain import tx_cell, when
 from dashboard.tables import (cert_of, certificates, mwh, pick, production_by_day, rejected, section, show, tok)
-from rec.experiments.e3 import lineage
+from rec.registry.lineage import lineage
 from rec.timeutil import day_date
 
 

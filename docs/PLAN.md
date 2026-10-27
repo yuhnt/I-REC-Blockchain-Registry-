@@ -66,9 +66,10 @@ source/
 │  ├─ checks/                # completeness ①, consistency (a), ceiling_pvlib, ceiling_ai
 │  ├─ model/                 # features, train, calibrate (hồi quy phân vị)
 │  ├─ gate/                  # sim.py: DecisionGate mô phỏng ①–④; profiles B0/B1/B2/Proposed; auditor.py
-│  ├─ registry/              # base (interface), sqlite_registry (B0 tách/chung), chain_registry (Hardhat, Sepolia)
-│  ├─ sim/                   # runner: đưa dòng sự kiện qua một backend
-│  ├─ deploy/                # demo (chain cục bộ cho dashboard), testnet (Sepolia)
+│  ├─ registry/              # base (interface), sqlite_registry (B0 tách/chung), chain_registry, testnet_registry,
+│  │                         # contracts (vai, ABI, mã lỗi), hardhat (node), lineage (dựng chuỗi chứng chỉ từ event)
+│  ├─ sim/                   # runner (đưa dòng sự kiện qua một backend), evidence (4 nút oracle + verifier → bằng chứng lô)
+│  ├─ deploy/                # demo (chain cục bộ cho dashboard), testnet (Sepolia), env (đọc contracts/.env)
 │  ├─ metrics/               # dcr, oir, lmax, detection, bootstrap
 │  └─ experiments/           # e1, e2, e3, parity, figures, run_all
 ├─ contracts/                # Hardhat project
@@ -81,6 +82,23 @@ source/
 ├─ manifests/                # sha256 của tập test, mô hình, kết quả (commit)
 └─ artifacts/                # parquet, tập test, mô hình, kết quả (gitignore)
 ```
+
+**Quy tắc phân lớp.** Gói ở lớp dưới không import gói ở lớp trên; `tests/test_layout.py` kiểm điều này.
+
+| Lớp | Gói | Vai trò |
+|---|---|---|
+| 0 | `schema`, `timeutil`, `config`, `manifest` | kiểu dữ liệu, quy ước thời gian, cấu hình |
+| 1 | `data`, `physics` | đọc PVDAQ, NSRDB; pvlib |
+| 2 | `oracles` | mã hóa `data_root`, kho file, chữ ký EIP-712, 4 nút O1–O4 |
+| 3 | `generator` | dòng sự kiện, kịch bản tấn công (khóa ở `testset-v1`) |
+| 4 | `checks`, `model`, `metrics` | luật nhất quán, trần AI, chỉ số |
+| 5 | `gate` | verifier, auditor, DecisionGate mô phỏng |
+| 6 | `registry` | ba backend lớp A, thông tin contract, lineage |
+| 7 | `sim` | runner, bằng chứng lô cho chain |
+| 8 | `experiments`, `deploy` | E1–E3, parity, run_all; demo, testnet |
+| 9 | `dashboard` | giao diện |
+
+Các thí nghiệm không import lẫn nhau (trừ `run_all`): phần dùng chung giữa thí nghiệm, demo và dashboard đặt ở `sim/` hoặc `registry/`. Ngoại lệ duy nhất: `oracles/node.py` dựng báo cáo ngày bằng `generator.common.report`, vì `generator/` nằm trong manifest `testset-v1` nên không dời hàm đó xuống được.
 
 ## 3. Quy ước dữ liệu và giao diện
 

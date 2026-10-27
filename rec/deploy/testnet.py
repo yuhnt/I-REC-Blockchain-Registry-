@@ -17,7 +17,6 @@ Sau đó: streamlit run dashboard/app.py, chọn chain "Sepolia" ở thanh bên.
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import sys
 from datetime import date
@@ -27,7 +26,8 @@ from web3 import Web3
 
 from rec import config
 from rec.oracles.signer import hardhat_account
-from rec.registry.chain_registry import ROLES, contracts_dir
+from rec.deploy.env import load_env
+from rec.registry.contracts import ROLES, contracts_dir
 
 EXPLORER = "https://sepolia.etherscan.io"
 SEPOLIA_CHAIN_ID = 11155111
@@ -38,18 +38,6 @@ FUND_ETH = {"issuerA": 0.015, "issuerB": 0.004, "auditor": 0.002, "codeManager":
 # Vai gửi giao dịch on-chain nên cần ETH test; oracle và verifier chỉ ký off-chain.
 NEEDS_GAS = {"deployer": "nhiều (deploy 3 contract, chia ETH cho các vai)", "issuerA": "vừa", "issuerB": "ít",
              "auditor": "ít", "codeManager": "ít", "plant": "vừa", "buyer1": "ít", "buyer2": "ít", "buyer3": "ít"}
-
-
-def load_env(path: Path | None = None) -> dict[str, str]:
-    """KEY=VALUE mỗi dòng, bỏ dấu ngoặc kép bao ngoài; giống cách hardhat.config.ts đọc."""
-    path = path or contracts_dir() / ".env"
-    out = {}
-    if path.exists():
-        for line in path.read_text(encoding="utf-8").splitlines():
-            m = re.match(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$", line)
-            if m:
-                out[m.group(1)] = re.sub(r"^(['\"])(.*)\1$", r"\2", m.group(2))
-    return out
 
 
 def accounts(env: dict[str, str]) -> dict[str, str]:
@@ -142,7 +130,7 @@ def _jsonable(x):
 
 def cmd_deploy(env: dict[str, str], argv: list[str]) -> int:
     from rec.deploy.demo import deployment_info
-    from rec.registry.chain_registry import TestnetRegistry
+    from rec.registry.testnet_registry import TestnetRegistry
     _w3(env)
     if dep_path().exists() and "--force" not in argv:
         raise SystemExit(f"đã có {dep_path()}; thêm --force để deploy bộ contract mới")
@@ -176,7 +164,7 @@ def cmd_verify(env: dict[str, str]) -> int:
 
 def cmd_demo(env: dict[str, str], argv: list[str]) -> int:
     from rec.deploy.demo import populate
-    from rec.registry.chain_registry import TestnetRegistry
+    from rec.registry.testnet_registry import TestnetRegistry
     dep = json.loads(dep_path().read_text(encoding="utf-8"))
     if dep.get("demo_loaded") and "--force" not in argv:
         raise SystemExit("demo đã được nạp cho bộ contract này; deploy mới (deploy --force) nếu muốn nạp lại")

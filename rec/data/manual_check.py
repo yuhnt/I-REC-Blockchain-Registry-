@@ -31,7 +31,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 from rec import config  # noqa: E402
 from rec.data.dataset import INVERTERS  # noqa: E402
-from rec.timeutil import PLANT_TZ, day_date, slot_days  # noqa: E402
+from rec.timeutil import PLANT_TZ, day_date  # noqa: E402
 
 N_RANDOM, N_TAIL, SEED = 30, 20, 2026
 # Màu theo bảng tham chiếu của skill dataviz (slot 1, 2, 7); nền và chữ trung tính.

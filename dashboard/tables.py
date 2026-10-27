@@ -6,7 +6,7 @@ import streamlit as st
 
 from dashboard import state as S
 from dashboard.onchain import b32, s32, tx_cell, when
-from rec.registry.chain_registry import REASONS
+from rec.registry.contracts import REASONS
 from rec.schema import Flag
 from rec.timeutil import day_date
 

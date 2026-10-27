@@ -1,31 +1,37 @@
 """Kết nối chain, đọc event, gửi giao dịch.
 
 Log được đọc cộng dồn (chỉ block mới) và chia khúc, vì nhà cung cấp RPC công khai giới hạn khoảng block mỗi lần
-`eth_getLogs`. URL RPC chứa API key nên không bao giờ hiện trên trang (`redact`).
+`eth_getLogs` (Alchemy gói miễn phí: 10 block) và số lời gọi mỗi giây (lỗi 429 thì chờ rồi gọi lại). Trên Sepolia, log
+đã đọc được lưu xuống `artifacts/testnet/logs_cache.json`, nên lần mở sau chỉ đọc block mới. URL RPC chứa API key nên
+không bao giờ hiện trên trang (`redact`).
 """
 from __future__ import annotations
 
 import json
 import re
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
 import pandas as pd
 import streamlit as st
-from eth_utils import keccak
+from hexbytes import HexBytes
 from web3 import Web3
+from web3.datastructures import AttributeDict
 
 from dashboard import state as S
 from rec import config
-from rec.deploy.testnet import load_env
+from rec.deploy.env import load_env
 from rec.oracles.signer import hardhat_account
 from rec.oracles.store import FileStore
-from rec.registry.chain_registry import ROLES, _artifact
+from rec.registry.contracts import ROLES, artifact, error_selectors
 from rec.timeutil import PLANT_TZ
 
 SOURCES = {"Hardhat cục bộ": ("demo", "deployment.json"), "Sepolia (testnet)": ("testnet", "deployment.json")}
 LOG_CHUNK = 2_000  # số block mỗi lần eth_getLogs; tự hạ xuống LOG_CHUNK_MIN nếu nhà cung cấp RPC từ chối
 LOG_CHUNK_MIN = 10  # Alchemy gói miễn phí chỉ cho khoảng 10 block mỗi lần
+RETRIES = 6  # lỗi 429 (quá nhiều lời gọi): chờ 1, 2, 4, … giây rồi gọi lại
+SAVE_EVERY = 200  # lưu cache xuống đĩa sau mỗi chừng này khúc, để lần mở sau không phải đọc lại từ đầu
 EVENT_NAMES = {"gate": ["LotEvidenced", "LotReview", "LotResolved", "O1Conflict", "Issued", "IssueRejected",
                          "IssueHeld"],
                "certs": ["TransferSingle", "Retired", "Suspended", "Withdrawn"],
@@ -55,13 +61,8 @@ def connect(source: str):
     if not url:
         return None
     w3 = Web3(Web3.HTTPProvider(url, request_kwargs={"timeout": 60}))
-    c = {name: w3.eth.contract(address=addr, abi=_artifact(name)["abi"]) for name, addr in dep["contracts"].items()}
-    errors = {}
-    for name in c:
-        for item in _artifact(name)["abi"]:
-            if item["type"] == "error":
-                sig = f"{item['name']}(" + ",".join(i["type"] for i in item["inputs"]) + ")"
-                errors["0x" + keccak(text=sig)[:4].hex()] = item["name"]
+    c = {name: w3.eth.contract(address=addr, abi=artifact(name)["abi"]) for name, addr in dep["contracts"].items()}
+    errors = error_selectors(c)
     mnemonic = env.get("TESTNET_MNEMONIC", "")
     return SimpleNamespace(w3=w3, dep=dep, devices=c["DeviceRegistry"], certs=c["CertificateRegistry"],
                            gate=c["DecisionGate"], store=FileStore(Path(dep["store"])), errors=errors,
@@ -74,28 +75,73 @@ def redact(text: str) -> str:
     return re.sub(r"https?://\S+", "<RPC>", str(text))
 
 
+def _cache_path(source: str) -> Path:
+    return config.resolve_path("artifacts") / SOURCES[source][0] / "logs_cache.json"
+
+
+def _log_to_json(lg) -> dict:
+    hx = lambda x: "0x" + bytes(x).hex()  # noqa: E731
+    return {"address": lg["address"], "topics": [hx(t) for t in lg["topics"]], "data": hx(lg["data"]),
+            "blockNumber": lg["blockNumber"], "blockHash": hx(lg["blockHash"]),
+            "transactionHash": hx(lg["transactionHash"]), "transactionIndex": lg["transactionIndex"],
+            "logIndex": lg["logIndex"], "removed": False}
+
+
+def _log_from_json(d: dict) -> AttributeDict:
+    return AttributeDict(d | {"topics": [HexBytes(t) for t in d["topics"]], "data": HexBytes(d["data"]),
+                              "blockHash": HexBytes(d["blockHash"]), "transactionHash": HexBytes(d["transactionHash"])})
+
+
 @st.cache_resource
 def log_store(source: str) -> dict:
     """Log thô đã đọc của mỗi chain, cộng dồn qua các lần tải trang: chỉ đọc thêm block mới."""
     return {"next": None, "chunk": LOG_CHUNK, "logs": []}
 
 
+def _save(source: str, store: dict, addrs: list[str]) -> None:
+    path = _cache_path(source)
+    path.write_text(json.dumps({"contracts": addrs, "next": store["next"],
+                                "logs": [_log_to_json(lg) for lg in store["logs"]]}), encoding="utf-8")
+
+
+def _get_logs(chain, query: dict) -> list:
+    for i in range(RETRIES):
+        try:
+            return chain.w3.eth.get_logs(query)
+        except Exception as e:  # noqa: BLE001
+            status = getattr(getattr(e, "response", None), "status_code", None)
+            if status != 429 or i == RETRIES - 1:
+                raise
+            time.sleep(2 ** i)
+
+
 def fetch_logs(chain, source: str, latest: int) -> list:
     """eth_getLogs cho cả 3 contract trong một lệnh mỗi khúc block; tự thu nhỏ khúc nếu RPC từ chối."""
     store = log_store(source)
+    addrs = [chain.devices.address, chain.certs.address, chain.gate.address]
     if store["next"] is None:
         store["next"] = int(chain.dep.get("from_block", 0))
-    addrs = [chain.devices.address, chain.certs.address, chain.gate.address]
+        cached = _cache_path(source)
+        if chain.public and cached.exists():  # Hardhat cục bộ deploy lại cùng địa chỉ, nên chỉ dùng cache cho Sepolia
+            doc = json.loads(cached.read_text(encoding="utf-8"))
+            if doc.get("contracts") == addrs:
+                store["next"], store["logs"] = doc["next"], [_log_from_json(d) for d in doc["logs"]]
+    start, n = store["next"], 0
     while store["next"] <= latest:
         end = min(store["next"] + store["chunk"] - 1, latest)
         try:
-            store["logs"] += chain.w3.eth.get_logs({"fromBlock": store["next"], "toBlock": end, "address": addrs})
+            store["logs"] += _get_logs(chain, {"fromBlock": store["next"], "toBlock": end, "address": addrs})
         except Exception:  # noqa: BLE001 – vượt giới hạn khoảng block của nhà cung cấp
             if store["chunk"] > LOG_CHUNK_MIN:
                 store["chunk"] = LOG_CHUNK_MIN
                 continue
             raise
         store["next"] = end + 1
+        n += 1
+        if chain.public and n % SAVE_EVERY == 0:
+            _save(source, store, addrs)
+    if chain.public and store["next"] != start:
+        _save(source, store, addrs)
     return store["logs"]
 
 

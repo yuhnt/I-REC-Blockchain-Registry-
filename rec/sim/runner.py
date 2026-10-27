@@ -125,3 +125,17 @@ def run_stream(backend: Registry, events: list[Event], sun_slots: dict[int, int]
 def backend_cp(backend: Registry, req) -> str:
     """CP của thiết bị trong yêu cầu; dòng sự kiện của đề tài chỉ có một CP."""
     return next(iter(backend.plant.cp_capacity_w)) if hasattr(backend, "plant") else ""
+
+
+def truncate(events, first_day: int, n_days: int):
+    """Sự kiện của n_days ngày đầu (đăng ký, chuyển đăng ký giữ nguyên)."""
+    last = first_day + n_days
+    keep = []
+    for e in events:
+        p = e.payload
+        day = getattr(p, "day", getattr(p, "day_start", None))
+        if e.kind in (EventKind.REGISTER, EventKind.TRANSFER_REGISTRATION) or (day is not None and day < last):
+            if e.kind is EventKind.TRANSFER_REGISTRATION and p.effective_day >= last:
+                continue
+            keep.append(e)
+    return keep

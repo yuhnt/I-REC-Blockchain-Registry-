@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from rec.checks.consistency import coverage, stats
 from rec.oracles.encoding import MISSING, to_ints
 from rec.schema import OracleId
 
@@ -65,3 +66,13 @@ def device_caps(devices: dict[str, list[int]], inverter_w: int) -> dict[str, int
     for m in range(1, len(devices) + 1):
         caps[f"XD4b-{m}"] = per_block * m
     return caps
+
+
+def lot_row(series: dict, dd, temp: np.ndarray, cons, window) -> dict:
+    """Đặc trưng của một lô mà các luật ①–③ cần: báo cáo O1, số slot ban ngày, độ phủ nhỏ nhất, thống kê nhất quán."""
+    o1_day, o1_max = o1_report(series[OracleId.O1])
+    cov = coverage({o: series[o] for o in CHECKED_ORACLES}, dd.sun)
+    row = {"o1_day": o1_day, "o1_max": o1_max, "sun_slots": int(dd.sun.sum()), "cov_min": min(cov.values()),
+           "o3_total": float(np.nansum(series[OracleId.O3])), "y_wh": dd.y_wh}
+    row.update(stats(series, dd.sun, temp, cons, window))
+    return row

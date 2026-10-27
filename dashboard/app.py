@@ -19,6 +19,7 @@ suy ra từ TESTNET_MNEMONIC trong contracts/.env; URL RPC (chứa API key) khô
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 import streamlit as st
@@ -39,7 +40,12 @@ available = available_sources()
 source = st.sidebar.selectbox("Chain", available or ["Hardhat cục bộ"])
 try:
     chain = connect(source) if available else None
-    connected = chain is not None and chain.w3.is_connected()
+    connected = False
+    for i in range(3):  # RPC công khai có thể trả 429 (quá nhiều lời gọi) trong chốc lát
+        connected = chain is not None and chain.w3.is_connected()
+        if connected or chain is None:
+            break
+        time.sleep(2 * (i + 1))
 except Exception:  # noqa: BLE001
     chain, connected = None, False
 if not connected:

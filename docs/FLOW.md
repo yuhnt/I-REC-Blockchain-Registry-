@@ -235,7 +235,7 @@ Chỉ hai backend SQLite có `operator_edit` (UPDATE / DELETE / phát hành lạ
 
 Verifier: `rec/gate/verifier.py` đọc tham số đã khóa (`artifacts/model/<biến thể>/layer_b.json`, `models.pkl`), tính cờ bằng đúng các hàm của mô phỏng off-chain, và trả `flags`, `ceilingWh`, `sunSlots`, `modelHash` (keccak của hai file tham số cùng cấu hình), cùng file reason code (lưu trong kho file, `reasonsHash` là keccak của nội dung). Kho file: `rec/oracles/store.py`.
 
-Cài đặt: `rec/registry/base.py`, `sqlite_registry.py` (hai biến thể B0), `chain_registry.py` (web3.py, gửi giao dịch bằng RPC thô, snapshot sau deploy và quay về trước mỗi dòng). Ký EIP-712 ở `rec/oracles/signer.py`. Trong b0_separate, báo cáo O1 của điện lực (R1) được gửi tới CSDL của mọi issuer, và chuyển đăng ký (L3) là đóng ở CSDL cũ rồi mở cùng mã ở CSDL mới. `reconcile()` chạy một lần ở cuối dòng; exposure window được tính từ thời điểm MINT tới lần đối soát kế tiếp theo chu kỳ T_rec.
+Cài đặt: `rec/registry/base.py`, `sqlite_registry.py` (hai biến thể B0), `chain_registry.py` (web3.py, gửi giao dịch bằng RPC thô, snapshot sau deploy và quay về trước mỗi dòng), `testnet_registry.py` (cùng logic, ký tại máy cho Sepolia), `hardhat.py` (node chạy nền), `contracts.py` (vai, ABI, mã lỗi). Bằng chứng lô cho chain: `rec/sim/evidence.py`; lineage: `rec/registry/lineage.py`. Ký EIP-712 ở `rec/oracles/signer.py`. Trong b0_separate, báo cáo O1 của điện lực (R1) được gửi tới CSDL của mọi issuer, và chuyển đăng ký (L3) là đóng ở CSDL cũ rồi mở cùng mã ở CSDL mới. `reconcile()` chạy một lần ở cuối dòng; exposure window được tính từ thời điểm MINT tới lần đối soát kế tiếp theo chu kỳ T_rec.
 
 ## 11. Bộ chạy mô phỏng (`rec/sim/runner.py`, E1 ở `rec/experiments/e1.py`)
 

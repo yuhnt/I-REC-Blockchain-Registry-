@@ -183,9 +183,9 @@ source/
 │  ├─ oracles/              # encoding, store (kho file theo data_root), signer (EIP-712), node (4 nút O1–O4)
 │  ├─ generator/            # dòng sự kiện và kịch bản tấn công (tập test đã khóa)
 │  ├─ checks/, model/, gate/   # lớp B: nhất quán, trần AI, verifier, auditor, DecisionGate mô phỏng
-│  ├─ registry/             # backend: CSDL tách biệt, CSDL chung, chain (Hardhat, Sepolia)
-│  ├─ sim/                  # runner: đưa dòng sự kiện qua một backend
-│  ├─ deploy/               # demo (chain cục bộ cho dashboard), testnet (Sepolia)
+│  ├─ registry/             # backend: CSDL tách biệt, CSDL chung, chain (Hardhat, Sepolia); contracts, lineage
+│  ├─ sim/                  # runner, evidence (4 nút oracle + verifier → bằng chứng lô)
+│  ├─ deploy/               # demo (chain cục bộ cho dashboard), testnet (Sepolia), env
 │  ├─ experiments/          # E1, E2, E3, parity, hình, run_all
 │  └─ metrics/
 ├─ dashboard/      # app.py (chọn trang), onchain, tables, components; views/ mỗi vai một file + truy vết kịch bản
@@ -193,3 +193,5 @@ source/
 ├─ manifests/      # hash của từng mốc, CHANGES.md
 └─ contracts/      # Hardhat: DeviceRegistry, CertificateRegistry, DecisionGate; test/ theo điều khoản I-REC
 ```
+
+Gói ở lớp dưới không import gói ở lớp trên (bảng lớp ở [docs/PLAN.md](docs/PLAN.md) mục 2; `tests/test_layout.py` kiểm).

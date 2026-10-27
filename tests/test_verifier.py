@@ -29,7 +29,7 @@ def test_store_roundtrip_and_tamper(tmp_path):
 @pytest.mark.parametrize("profile", ["B2", "Proposed"])
 def test_verifier_flags_match_offline_decision(profile):
     """Verifier (từng lô, tham số đọc từ file đã khóa) cho cùng cờ với `decide` của E2 (vector hóa)."""
-    from rec.experiments.e2 import _lot_row
+    from rec.gate.sim import lot_row
     from rec.gate.sim import PROFILES
     from rec.gate.verifier import Verifier
     from rec.generator.cases_e2 import apply_case
@@ -46,7 +46,7 @@ def test_verifier_flags_match_offline_decision(profile):
     for row in cases.to_dict("records"):
         applied = apply_case(row, data, devices)
         dd = data[int(row["day"])]
-        rows.append(_lot_row(applied.series, dd, temps[dd.day], v.cons, v.window))
+        rows.append(lot_row(applied.series, dd, temps[dd.day], v.cons, v.window))
         flags.append(v.evaluate(dd.day, applied.series, dd.sun, temps[dd.day]).flags != 0)
     feat = pd.DataFrame(rows).assign(minted_a_wh=0, a_reject=False)
     base = np.array([v.base[int(d)] for d in cases["day"]])

@@ -19,8 +19,7 @@ import numpy as np
 import pandas as pd
 
 from rec import config
-from rec.experiments.e2 import _lot_row
-from rec.gate.sim import PROFILES, device_caps, layer_a
+from rec.gate.sim import PROFILES, device_caps, layer_a, lot_row
 from rec.gate.verifier import Verifier
 from rec.generator.cases_e2 import apply_case
 from rec.generator.common import EVIDENCE_AT, INVERTER_MAX_W, REQUEST_AT, load_days, local_t, reports_for
@@ -73,7 +72,8 @@ def expected(feat_row: dict, requests: list, check, prof, verifier: Verifier, da
 
 def main(argv: list[str]) -> int:
     sys.stdout.reconfigure(encoding="utf-8")
-    from rec.registry.chain_registry import ChainRegistry, HardhatNode
+    from rec.registry.chain_registry import ChainRegistry
+    from rec.registry.hardhat import HardhatNode
 
     per = int(_arg(argv, "--per-scenario", "50"))
     port = int(_arg(argv, "--port", "8551"))
@@ -107,7 +107,7 @@ def main(argv: list[str]) -> int:
         for n, row in enumerate(cases.to_dict("records")):
             applied = apply_case(row, data, devices)
             dd = data[int(row["day"])]
-            feat = _lot_row(applied.series, dd, temps[dd.day], verifiers["Proposed"].cons, verifiers["Proposed"].window)
+            feat = lot_row(applied.series, dd, temps[dd.day], verifiers["Proposed"].cons, verifiers["Proposed"].window)
             check = lambda reqs: layer_a(reqs, feat["o1_day"], feat["o1_max"], feat["sun_slots"], caps, cp_cap)
             fraud = int(labels.loc[row["case_id"], "excess_wh_true"]) > 0
             reports = reports_for(dd, cp, applied.series)

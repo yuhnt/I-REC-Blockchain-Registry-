@@ -23,7 +23,6 @@ import numpy as np
 import pandas as pd
 
 from rec import config
-from rec.experiments.e3 import make_verdict, truncate
 from rec.gate.verifier import Verifier
 from rec.generator.common import EVIDENCE_AT, REQUEST_AT, allocate, load_days, local_t
 from rec.oracles.node import oracle_nodes
@@ -31,7 +30,8 @@ from rec.oracles.signer import token_id
 from rec.oracles.store import FileStore
 from rec.registry.base import LotEvidence
 from rec.schema import Device, EditAction, IssueRequest, OperatorEdit, OracleId
-from rec.sim.runner import load_stream, plant_from_config, run_stream
+from rec.sim.evidence import make_verdict
+from rec.sim.runner import load_stream, plant_from_config, run_stream, truncate
 
 DEMO_DAYS = 20
 GAIN = 1.45
@@ -148,7 +148,8 @@ def deployment_info(chain) -> dict:
 
 def main(argv: list[str]) -> int:
     sys.stdout.reconfigure(encoding="utf-8")
-    from rec.registry.chain_registry import ChainRegistry, HardhatNode
+    from rec.registry.chain_registry import ChainRegistry
+    from rec.registry.hardhat import HardhatNode
 
     artifacts = config.resolve_path("artifacts")
     dep_path = artifacts / "demo" / "deployment.json"

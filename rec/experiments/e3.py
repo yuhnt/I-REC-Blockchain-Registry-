@@ -23,24 +23,19 @@ from __future__ import annotations
 import json
 import sys
 import time
-from collections import defaultdict
 
 import numpy as np
 import pandas as pd
-from eth_utils import keccak
-from web3.datastructures import AttributeDict
 
 from rec import config
 from rec.gate.verifier import Verifier
 from rec.generator.common import load_days
-from rec.oracles.node import oracle_nodes
 from rec.oracles.store import FileStore
-from rec.registry.base import LotEvidence
-from rec.schema import EventKind, OracleId
-from rec.sim.runner import load_stream, plant_from_config, run_stream
+from rec.registry.lineage import lineage
+from rec.sim.evidence import make_verdict
+from rec.sim.runner import load_stream, plant_from_config, run_stream, truncate
 
 CONFIGS = ("B1", "B2", "Proposed")
-ORDER = (OracleId.O1, OracleId.O2, OracleId.O3, OracleId.O4)
 SEED = 101
 
 
@@ -48,96 +43,10 @@ def _arg(argv, name, default):
     return argv[argv.index(name) + 1] if name in argv else default
 
 
-def truncate(events, first_day: int, n_days: int):
-    """Sự kiện của n_days ngày đầu (đăng ký, chuyển đăng ký giữ nguyên)."""
-    last = first_day + n_days
-    keep = []
-    for e in events:
-        p = e.payload
-        day = getattr(p, "day", getattr(p, "day_start", None))
-        if e.kind in (EventKind.REGISTER, EventKind.TRANSFER_REGISTRATION) or (day is not None and day < last):
-            if e.kind is EventKind.TRANSFER_REGISTRATION and p.effective_day >= last:
-                continue
-            keep.append(e)
-    return keep
-
-
-def make_verdict(verifier: Verifier | None, data, temps, slot_ends, chain, store: FileStore):
-    """Bằng chứng của lô: 4 nút oracle độc lập (rec/oracles/node.py) mỗi nút tự lưu chuỗi 15 phút của mình vào kho
-    và tự ký báo cáo; verifier (nếu có) chạy lớp B trên cùng chuỗi đó."""
-    cp = next(iter(chain.plant.cp_capacity_w))
-    nodes = oracle_nodes(cp, chain.gate.address, chain.w3.eth.chain_id, chain.mnemonic, store)
-
-    def verdict_of(cp: str, day: int, reports):
-        dd = data[day]
-        signed = tuple(nodes[o].observe(day, dd.series[o], dd.sun, slot_ends.get(day)) for o in ORDER)
-        assert [r.data_root for r in signed] == [r.data_root for r in reports]  # khớp báo cáo trong dòng sự kiện
-        if verifier is None:
-            return LotEvidence(cp, day, signed, 0, int(dd.sun.sum()))
-        v = verifier.evaluate(day, dd.series, dd.sun, temps[day])
-        return LotEvidence(cp, day, signed, v.flags, v.sun_slots, v.ceiling_wh, v.model_hash, store.put_json(v.reasons))
-    return verdict_of
-
-
-def _logs(chain, contract, event: str, from_block: int = 0) -> list:
-    ev = getattr(contract.events, event)
-    return ev().get_logs(from_block=from_block)
-
-
-def _args(chain, contract, event: str, events: dict | None) -> list:
-    """Tham số của mọi event `event`. Có `events` (event đã đọc sẵn, ví dụ dashboard đọc log theo khúc vì RPC công khai
-    giới hạn khoảng block) thì dùng luôn, không gọi lại eth_getLogs."""
-    if events is not None:
-        return [AttributeDict(e) for e in events[event]]
-    return [lg.args for lg in _logs(chain, contract, event)]
-
-
-def lineage(chain, store: FileStore, events: dict | None = None) -> pd.DataFrame:
-    """Dựng lại chuỗi của từng chứng chỉ chỉ từ event on-chain và kho file."""
-    registered = {bytes(a.deviceId) for a in _args(chain, chain.devices, "DeviceRegistered", events)}
-    lots = {bytes(a.lotKey): a for a in _args(chain, chain.gate, "LotEvidenced", events)}
-    reviews = {bytes(a.lotKey): a for a in _args(chain, chain.gate, "LotReview", events)}
-    resolved = {bytes(a.lotKey): a for a in _args(chain, chain.gate, "LotResolved", events)}
-    moves = defaultdict(list)
-    for a in _args(chain, chain.certs, "TransferSingle", events):
-        moves[int(a.id)].append((a["from"], a.to, int(a.value)))
-    retired, withdrawn = defaultdict(int), defaultdict(int)
-    for a in _args(chain, chain.certs, "Retired", events):
-        retired[int(a.tokenId)] += int(a.wh)
-    for a in _args(chain, chain.certs, "Withdrawn", events):  # Code Manager rút: đốt có event và lý do riêng
-        withdrawn[int(a.tokenId)] += int(a.wh)
-    rows = []
-    for a in _args(chain, chain.gate, "Issued", events):
-        tid, dev, day = int(a.tokenId), bytes(a.deviceId), int(a.day)
-        cp = chain.devices.functions.deviceOf(dev).call()[0]
-        key = keccak(bytes(cp) + day.to_bytes(32, "big"))
-        lot = lots.get(key)
-        files_ok = lot is not None and all(store.verify(bytes(r)) for r in lot.dataRoots if bytes(r) != b"\0" * 32)
-        review_ok = True
-        if lot is not None and lot.flags != 0:
-            rv, rs = reviews.get(key), resolved.get(key)
-            review_ok = rv is not None and rs is not None and rs.approved and (store.root / f"{bytes(rv.reasonsHash).hex()}.json").exists()
-        bal = defaultdict(int)
-        for frm, to, v in moves[tid]:
-            if frm != "0x" + "0" * 40:
-                bal[frm] -= v
-            if to != "0x" + "0" * 40:
-                bal[to] += v
-        minted = sum(v for frm, _, v in moves[tid] if frm == "0x" + "0" * 40)
-        burned = sum(v for _, to, v in moves[tid] if to == "0x" + "0" * 40)
-        supply_ok = minted == int(a.wh) and burned == retired[tid] + withdrawn[tid] and all(v >= 0 for v in bal.values())
-        rows.append({"token_id": hex(tid), "device": dev.rstrip(b"\0").decode(), "day": day,
-                     "registered": dev in registered, "lot_evidence": lot is not None, "files_verified": files_ok,
-                     "review_trail": review_ok, "supply_consistent": supply_ok, "transfers": len(moves[tid]) - 1,
-                     "retired_wh": retired[tid], "withdrawn_wh": withdrawn[tid]})
-    df = pd.DataFrame(rows)
-    df["complete"] = df[["registered", "lot_evidence", "files_verified", "review_trail", "supply_consistent"]].all(axis=1)
-    return df
-
-
 def main(argv: list[str]) -> int:
     sys.stdout.reconfigure(encoding="utf-8")
-    from rec.registry.chain_registry import ChainRegistry, HardhatNode
+    from rec.registry.chain_registry import ChainRegistry
+    from rec.registry.hardhat import HardhatNode
 
     n_days = int(_arg(argv, "--days", str(config.load("scenarios")["experiments"]["E3"]["stream_days"])))
     lat_days = int(_arg(argv, "--latency-days", "30"))

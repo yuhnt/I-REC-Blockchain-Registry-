@@ -17,32 +17,22 @@ import numpy as np
 import pandas as pd
 
 from rec import config
-from rec.checks.consistency import STATS, VARIANTS, coverage, fit, stats
+from rec.checks.consistency import STATS, VARIANTS, fit
 from rec.data import pvdaq
 from rec.gate.auditor import Auditor
-from rec.gate.sim import CHECKED_ORACLES, PROFILES, device_caps, layer_a, o1_report
+from rec.gate.sim import PROFILES, device_caps, layer_a, lot_row
 from rec.generator.cases_e2 import apply_case
 from rec.generator.common import INVERTER_MAX_W, allocate, load_days
 from rec.metrics.e2 import bootstrap_diff, decide, lmax, lmax_scale, summarize
 from rec.model import ai
 from rec.model.calibrate import ceiling_tau, consistency_thresholds
 from rec.physics.pvwatts import expected_day_wh, fit_scale
-from rec.schema import OracleId
 
 SLOT_HOURS = 0.25
 CEILING_BASE = {"B2": "pv", "Proposed": "ai", "A1": "ai_o3", "A2": "ai_linear"}
 _CTX = ("thr", "devices", "caps", "cp_cap_w", "min_cov", "artifacts", "days_df", "data", "temps", "split", "cons",
         "pv_scale", "models", "base_day", "hs", "tau_cons", "q_cons", "cons_rate", "sweep", "tau_ceil", "ceil_rate")
 SELECT_SLACK = 0.005  # `hour` được chọn nếu kém `day_only` không quá 0,5 điểm phần trăm (CHANGES.md)
-
-
-def _lot_row(series: dict, dd, temp: np.ndarray, cons, window) -> dict:
-    o1_day, o1_max = o1_report(series[OracleId.O1])
-    cov = coverage({o: series[o] for o in CHECKED_ORACLES}, dd.sun)
-    row = {"o1_day": o1_day, "o1_max": o1_max, "sun_slots": int(dd.sun.sum()), "cov_min": min(cov.values()),
-           "o3_total": float(np.nansum(series[OracleId.O3])), "y_wh": dd.y_wh}
-    row.update(stats(series, dd.sun, temp, cons, window))
-    return row
 
 
 def _random_check(feat: pd.DataFrame, dec: pd.DataFrame, auditor: Auditor, ps: list[float]) -> pd.DataFrame:
@@ -93,7 +83,7 @@ def _fit_and_calibrate(window) -> dict:
                 "ai_o3": pd.Series(ai.predict(models["ai_o3"], Xa1), index=days_df.index)}
 
     # 2. Thống kê của lô trung thực, chọn ngưỡng trên val.
-    hs = pd.DataFrame({d: _lot_row(data[d].series, data[d], temps[d], cons, window) for d in data}).T
+    hs = pd.DataFrame({d: lot_row(data[d].series, data[d], temps[d], cons, window) for d in data}).T
     hs = hs.apply(pd.to_numeric)
     tau_cons, q_cons, cons_rate = consistency_thresholds(hs.loc[split["val"], list(STATS)],
                                                          thr["consistency_a"]["false_review"])
@@ -161,7 +151,7 @@ def main(argv: list[str]) -> int:
     for row in cases.to_dict("records"):
         applied = apply_case(row, data, devices)
         dd = data[int(row["day"])]
-        lot = _lot_row(applied.series, dd, temps[dd.day], cons, window)
+        lot = lot_row(applied.series, dd, temps[dd.day], cons, window)
         reasons = layer_a(applied.requests, lot["o1_day"], lot["o1_max"], lot["sun_slots"], caps, cp_cap_w)
         lot["minted_a_wh"] = sum(wh for (_, _, wh), r in zip(applied.requests, reasons) if r is None)
         lot["minted_req_wh"] = tuple(wh for (_, _, wh), r in zip(applied.requests, reasons) if r is None)

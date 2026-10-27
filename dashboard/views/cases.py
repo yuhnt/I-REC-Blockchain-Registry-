@@ -15,7 +15,7 @@ from dashboard.components import certificate_detail, evidence_block
 from dashboard.onchain import b32, s32, tx_cell, when
 from dashboard.tables import (STATUS, cert_of, flags_text, held_info, lot_of, lot_status, pick, production_by_day,
                               show, token_of)
-from rec.registry.chain_registry import REASONS
+from rec.registry.contracts import REASONS
 from rec.timeutil import day_date
 
 CASES = {  # mã → (nhóm, tấn công / tình huống)

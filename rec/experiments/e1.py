@@ -55,7 +55,8 @@ def run(backends: list[str], streams: list[tuple[str, str, str | None]], port: i
     logs: dict[str, dict[str, pd.DataFrame]] = {}
     chain = node = None
     if "chain" in backends:
-        from rec.registry.chain_registry import ChainRegistry, HardhatNode
+        from rec.registry.chain_registry import ChainRegistry
+        from rec.registry.hardhat import HardhatNode
         node = HardhatNode(port)
         chain = ChainRegistry(plant, node.url)
     gas_rows = []
