@@ -29,7 +29,7 @@ Số liệu dưới đây ở mức trần 4% (mức chính), trừ chỗ có gh
 | η (công tơ / tổng inverter) | 0,9828 | 0,9828 |
 | β, γ của E₃ | 657,16 Wh/(Wh/m²); −0,00652 /°C | như cũ |
 | Hệ số pvlib | 0,8141 | như cũ |
-| q của ngưỡng nhất quán (hợp 4 cờ ≤ 1%) | **1,000** (bằng giá trị lớn nhất trên val) | 0,9969 |
+| q của ngưỡng nhất quán (hợp 4 cờ ≤ 1%) | **1,0** (bằng giá trị lớn nhất trên val) | 0,9969 |
 | τ₁₂ ngày / slot | 36,9% / 446% | 27,0% / — |
 | τ₁₃ ngày / slot | 31,0% / 161% | 24,3% / — |
 | τ trần ở 4%: B2 / Proposed / A1 / A2 | 26,9% / 8,1% / 5,7% / 1,1% | như cũ |
@@ -105,11 +105,11 @@ Bảng đầy đủ theo từng tham số: `artifacts/results/<biến thể>/e2a
 
 - Ở đăng ký trước, luật nhất quán **gần như vô tác dụng**. Ngưỡng bằng giá trị lớn nhất trên val, nên LMAX ở k = 1 (10,0%) chỉ thấp hơn k = 3 (12,3%) một chút.
 - Hậu kiểm bỏ thống kê theo slot. Kết quả chỉ là đổi mức cân bằng: REVIEW nhầm giảm, recall với M1, M3, D5 cũng giảm. Luật không chặt hơn đáng kể.
-- **Nguyên nhân gốc** là đuôi của tỷ số theo ngày, đến từ các ngày "inverter báo 0" (`outage`). Nhóm này gồm hai hiện tượng thật:
-  - **ngừng phát thật**, chiếm đa số: pin hoặc inverter tắt, công tơ giảm theo, tỷ số không đổi, không gây REVIEW nhầm. Ví dụ 28/7/2022: năm inverter gần như không phát khoảng 10 giờ, công tơ / (η · tổng inverter) − 1 = −0,8%;
+- **Nguyên nhân gốc** là đuôi của tỉ số theo ngày, đến từ các ngày "inverter báo 0" (`outage`). Nhóm này gồm hai hiện tượng thật:
+  - **ngừng phát thật**, chiếm đa số: pin hoặc inverter tắt, công tơ giảm theo, tỉ số không đổi, không gây REVIEW nhầm. Ví dụ 28/7/2022: năm inverter gần như không phát khoảng 10 giờ, công tơ / (η · tổng inverter) − 1 = −0,8%;
   - **ngừng ghi số liệu**, chiếm thiểu số: inverter báo 0 nhưng công tơ vẫn đo được điện. Chính nhóm này tạo ra đuôi. Ví dụ 27/8/2021.
 - **Giữ nguyên dữ liệu** (CHANGES, "Quyết định về các ngày inverter báo 0"). Cả hai hiện tượng đều là ngày trung thực mà registry thật sẽ gặp; loại chúng đi sẽ làm luật trông chặt hơn thực tế.
-- **Giới hạn cần nêu trong báo cáo:** luật nhất quán bị chặn bởi chất lượng ghi số liệu của inverter, chứ không bởi thiết kế một phía. Trên ngày không `outage` của val, p99 của tỷ số O1/O2 chỉ là 4,3%, nhưng tính cả các ngày ngừng ghi thì dung sai ở mức 1% REVIEW nhầm là khoảng 27–37%.
+- **Giới hạn cần nêu trong báo cáo:** luật nhất quán bị chặn bởi chất lượng ghi số liệu của inverter, chứ không bởi thiết kế một phía. Trên ngày không `outage` của val, p99 của tỉ số O1/O2 chỉ là 4,3%, nhưng tính cả các ngày ngừng ghi thì dung sai ở mức 1% REVIEW nhầm là khoảng 27–37%.
 - Hướng phát triển: hiệu chỉnh O2 theo số inverter đang báo số (CHANGES, cùng mục).
 
 ## 7. Kiểm tra ngẫu nhiên p (SPEC mục 8.2, đăng ký trước, trần 4%)
@@ -159,7 +159,7 @@ Kết quả ghi ở `artifacts/results/e1/` (`summary.csv`, `cases.csv`, `false_
 | D2 kỳ 7/30 ngày | 0/300 (khóa) | 0/300 (khóa) | 0/300 (khóa) |
 | D3 đăng ký lại mã ở issuer khác | **178/300 lọt**, tỉ lệ lọt 58% | 0/300 (bước đăng ký) | 0/300 (bước đăng ký) |
 | D4a thiết bị mới cùng CP, chép dữ liệu | **299/300 lọt**, 100% | 0/300 (ngân sách CP) | 0/300 (ngân sách CP) |
-| D4b thiết bị mới gồm tỷ lệ f các khối | **261/300 lọt**, 74% | 0/300 (ngân sách CP) | 0/300 (ngân sách CP) |
+| D4b thiết bị mới gồm tỉ lệ f các khối | **261/300 lọt**, 74% | 0/300 (ngân sách CP) | 0/300 (ngân sách CP) |
 | D5 thay ngày Y bằng dữ liệu ngày X | **128/300 lọt**, 9% | 0/300 (ngân sách CP) | 0/300 (ngân sách CP) |
 | D6 retire lại, chuyển sau retire | 0/300 (vòng đời) | 0/300 (vòng đời) | 0/300 (vòng đời) |
 | Insider sửa / xóa / phát hành lại | **300/300 thành công, không dấu vết: fail** | **300/300, không dấu vết: fail** | 0/300 (không có hàm quản trị): **pass** |

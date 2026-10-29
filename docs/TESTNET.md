@@ -18,7 +18,7 @@ Chứng chỉ ERC-1155 (đơn vị Wh): [https://sepolia.etherscan.io/token/0x2f
 
 Nạp ngày 2026-10-24: 3 ngày đầu của dòng hợp lệ (seed 101, cấu hình Proposed), cùng D1 và D4a bị REJECT, các lô chờ Production Auditor, và một lần tạm khóa và rút của Code Manager.
 
-- Giao dịch: 51, tổng gas 15,949,387
+- Giao dịch: 51, tổng gas 15.949.387
 - Yêu cầu đang bị giữ chờ auditor: 12
 
 ## Ghi chú vận hành

@@ -7,6 +7,8 @@ của cả nhà máy (CP-1). Luồng tổng quát và lý do thiết kế ở [F
 Ngưỡng của lớp B không ghi tay ở đây: chúng được chọn một lần trên tập val và khóa trong
 `artifacts/model/<biến thể>/layer_b.json`. Bảng dưới chép lại các giá trị đó (làm tròn) để đọc cho tiện.
 
+Gặp ký hiệu hay viết tắt chưa rõ (τ, η, E₃, k, R1, OIR, LMAX, B2, …): xem [mục 8](#8-thuật-ngữ-và-ký-hiệu).
+
 ## 0. Hằng số của nhà máy và thời gian
 
 | Hằng số | Giá trị | Nguồn |
@@ -119,8 +121,8 @@ công khai (§8.7). Chỉ cần một ngày vi phạm là cả yêu cầu bị t
 | 7 | `CAPACITY` | Wh > 120 kW × `sunSlots` × 0,25 h, hoặc `maxSlot` > 180 kWh, hoặc O1 > 720 kW × `sunSlots` × 0,25 h | từng ngày | §7.6 |
 | 8 | `LOT_REJECTED` | auditor đã bác lô | từng ngày | §8.7 |
 
-Ngày có Wh = 0 được bỏ qua. Nếu qua hết mà còn ngày thuộc lô **REVIEW**: phát `IssueHeld(reqId, lotKey)`, không mint,
-không giữ chỗ ngân sách. Nếu mọi ngày đều CLEAR hoặc APPROVED: mint ERC-1155 cho chủ đăng ký của CP, mỗi
+Ngày có Wh = 0 được bỏ qua. Nếu qua hết mà còn ngày thuộc lô **REVIEW**: phát `IssueHeld(reqId, lotKey)`, không MINT,
+không giữ chỗ ngân sách. Nếu mọi ngày đều CLEAR hoặc APPROVED: MINT, tức `CertificateRegistry.mint` tạo token ERC-1155 cho chủ đăng ký của CP, mỗi
 (thiết bị, ngày) một `tokenId`, đánh dấu khóa đã dùng.
 
 Hai lớp bảo vệ ngân sách độc lập: `DecisionGate` kiểm `BUDGET` ở trên, và `CertificateRegistry.mint` tự revert
@@ -129,8 +131,8 @@ Hai lớp bảo vệ ngân sách độc lập: `DecisionGate` kiểm `BUDGET` �
 ## 5. Production Auditor phân xử lô REVIEW: `resolveReview`
 
 Chỉ địa chỉ auditor gọi được, chỉ khi lô đang REVIEW. Kết quả `APPROVED` hoặc `REJECTED` kèm `reasonHash` (file biên
-bản trong kho). Phân xử không mint: issuer gửi lại yêu cầu đã bị giữ và `issue` chạy lại **toàn bộ** bảng ở mục 4.
-Lô APPROVED → mint; lô REJECTED → `LOT_REJECTED`.
+bản trong kho). Phân xử không MINT: issuer gửi lại yêu cầu đã bị giữ và `issue` chạy lại **toàn bộ** bảng ở mục 4.
+Lô APPROVED → MINT; lô REJECTED → `LOT_REJECTED`.
 
 Trong mô phỏng (`rec/gate/auditor.py`), auditor luôn kết luận đúng: duyệt khi lô không có phần khai vượt sản lượng
 thật. Đây là giả định có lợi cho hệ thống; tỉ lệ REVIEW nhầm cho biết auditor phải đọc bao nhiêu lô trung thực.
@@ -160,3 +162,91 @@ không đảo ngược, không sửa được (§10). Chứng chỉ đang bị t
 | `IssueRejected … LOT_REJECTED` | auditor đã bác lô |
 | `O1Conflict` | có người gửi O1 thứ hai khác cho cùng lô; O1 đầu tiên được giữ |
 | Giao dịch revert, không có event | người không có quyền gọi (ví dụ insider sửa bằng chứng, `NotIssuer`, `BadSignature`) |
+
+## 8. Thuật ngữ và ký hiệu
+
+Quy ước viết: **MINT**, **REJECT**, **REVIEW** viết hoa là kết cục của một yêu cầu; `mint` trong backtick là hàm của
+contract. Số viết kiểu Việt: dấu phẩy thập phân (0,95), dấu chấm tách nghìn (1.985).
+
+### Dữ liệu và đơn vị
+
+| Từ | Nghĩa |
+|---|---|
+| Slot | Khoảng 15 phút, nhãn ở cuối khoảng. Một ngày có 96 slot (92 hoặc 100 vào ngày đổi giờ) |
+| Lô | Một ngày sản xuất của cả nhà máy (một CP). Lớp B quyết định theo lô, không theo từng thiết bị |
+| CP | Điểm đấu nối với lưới (connection point), nơi đặt công tơ O1. Mọi thiết bị sau một CP dùng chung ngân sách |
+| Thiết bị | Một khối 4 inverter (120 kW) được đăng ký riêng; nhà máy có 6 thiết bị B1–B6 |
+| Slot ban ngày, `sunSlots` | Slot có mặt trời trên đường chân trời (góc thiên đỉnh < 90°, pvlib tính từ tọa độ). Chỉ slot ban ngày được tính độ phủ |
+| Độ phủ | Tỉ lệ slot ban ngày mà một oracle có số liệu |
+| `data_root` | Hash keccak256 của chuỗi 15 phút của một báo cáo; cũng là tên file trong kho. Ai cũng kiểm được file chưa bị sửa |
+| y | Sản lượng thật của lô (Wh, theo công tơ gốc trước khi kịch bản sửa số). Chỉ thí nghiệm biết y |
+| excess | Phần Wh đã MINT vượt y, tức phần khai khống lọt qua |
+
+### Oracle và kẻ gian
+
+| Từ | Nghĩa |
+|---|---|
+| O1 | Công tơ tại CP. Chứng chỉ được cấp theo số này, nên đây là số kẻ gian muốn khai tăng |
+| O2 | Tổng 24 inverter |
+| O3 | Bức xạ trên mặt tấm pin (POA) và nhiệt độ, đo bằng cảm biến tại chỗ |
+| O4 | Bức xạ POA từ vệ tinh NSRDB. Nhà máy không sửa được nguồn này |
+| POA | Plane of array: bức xạ trên mặt phẳng tấm pin, W/m² |
+| NSRDB | National Solar Radiation Database của NREL: bức xạ và thời tiết ước lượng từ vệ tinh |
+| R1, R2 | Ai giữ khóa ký: R1 khóa O1 thuộc điện lực; R2 khóa O1–O3 thuộc chủ dự án. O4 và verifier luôn thuộc issuer |
+| k | Số nguồn tại chỗ kẻ gian sửa được, luôn gồm O1: k = 1 (O1), k = 2 (O1, O2), k = 3 (O1, O2, O3) |
+
+### Lớp B
+
+| Ký hiệu | Nghĩa |
+|---|---|
+| Một phía | Chỉ báo động khi O1 **cao hơn** nhân chứng. O1 thấp hơn thì nhà máy tự thiệt, không phải khai khống, nên không xét |
+| η | Tỉ số công tơ / tổng inverter, phần điện mất qua dây và máy biến áp (0,9828). Khớp trên ngày trung thực của train |
+| β, γ | Hệ số đổi bức xạ ra điện: β Wh mỗi Wh/m², γ hệ số nhiệt mỗi °C lệch khỏi 25 °C (dạng mô hình PVWatts). Khớp trên train |
+| E₃ | Sản lượng kỳ vọng suy từ O3: min(180 kWh, β · POA · (1 + γ · (T − 25))) mỗi slot |
+| r₁₂, r₁₃ | Mức O1 cao hơn O2 (đã nhân η) và cao hơn E₃, tính theo ngày (tổng) và theo slot (lớn nhất) |
+| τ | Ngưỡng. τ₁₂, τ₁₃ cho luật nhất quán; τ của trần là biên an toàn trong nền · (1 + τ). Mọi τ chọn trên val theo tỉ lệ REVIEW nhầm cho trước |
+| Nền | Sản lượng dự đoán của ngày, chỉ từ O4 và lịch: PVWatts(NSRDB) với B2, mô hình AI với Proposed |
+| PVWatts, pvlib | PVWatts là mô hình sản lượng điện mặt trời của NREL; pvlib là thư viện Python cài đặt mô hình này. "PVWatts(NSRDB)" là sản lượng PVWatts tính từ bức xạ vệ tinh |
+| Q̂₀.₉₅(x) | Phân vị 95% của sản lượng ngày do mô hình GBM dự đoán từ đặc trưng x (chỉ lấy từ O4 và lịch) |
+| Verdict | Kết quả lớp B của một lô, do verifier ký EIP-712: `flags`, `sunSlots`, `ceilingWh`, `modelHash`, `reasonsHash` |
+| Verifier | Khóa của issuer chạy lớp B off-chain và ký verdict. Contract chỉ nhận verdict có chữ ký trong allowlist |
+| `flags` | Các cờ: 1 không nhất quán, 2 thiếu báo cáo, 4 vượt trần. Khác 0 thì lô vào REVIEW |
+| `modelHash` | Hash của bộ ngưỡng và mô hình đã dùng, để biết lô được quyết định bằng phiên bản nào |
+| prereg, day_only | prereg là cách tính đăng ký trước (`spec-v1`), chạy trên chain. day_only là biến thể hậu kiểm, bỏ thống kê theo slot |
+
+### Cấu hình so sánh
+
+| Tên | Gồm |
+|---|---|
+| B0 | Registry tập trung trên SQLite. Biến thể tách biệt: mỗi issuer một CSDL; dùng chung: một CSDL cho mọi issuer |
+| B1 | Chỉ lớp A (khóa, ngân sách CP, công suất), không có lớp B |
+| B2 | Lớp A + lớp B với trần vật lý PVWatts(NSRDB) |
+| Proposed | Lớp A + lớp B với trần AI. Đây là mô hình đề xuất |
+| A1, A2 | Ablation: A1 cho AI dùng O3 thay O4; A2 thay GBM bằng hồi quy phân vị tuyến tính |
+
+### Trạng thái và kết cục
+
+| Từ | Nghĩa |
+|---|---|
+| CLEAR, REVIEW, APPROVED, REJECTED | Trạng thái của lô: sạch; đang chờ auditor; auditor đã duyệt; auditor đã bác |
+| MINT, REJECT, giữ | Kết cục của một yêu cầu: được cấp chứng chỉ; bị lớp A từ chối kèm mã lý do; bị giữ vì lô đang REVIEW |
+| REVIEW nhầm | Lô trung thực bị đưa vào REVIEW. Tỉ lệ REVIEW nhầm là số việc thừa của auditor |
+| Kiểm tra ngẫu nhiên p | Auditor bốc p% số lô đã MINT để kiểm lại lúc 12:00 ngày d + 2 |
+| Production Auditor | Vai phân xử lô REVIEW (I-REC §8.5), chỉ đổi trạng thái lô, không MINT được |
+| Code Manager | Vai của Evident theo I-REC §11: tạm khóa, mở khóa, rút chứng chỉ chưa retire; mọi thao tác có event công khai |
+| Không nâng cấp, không quyền `mint` ngoài gate | Contract không có hàm admin để sửa, xóa hay mint tùy ý, không dùng proxy; chỉ `DecisionGate` gọi được `mint` |
+
+### Kịch bản và chỉ số
+
+| Từ | Nghĩa |
+|---|---|
+| D1–D6 | Đếm trùng: nộp lại (thiết bị, ngày) đã cấp (D1, D2); đăng ký trùng mã ở issuer khác (D3); thiết bị "mới" cùng CP chép sản lượng (D4a, D4b); thay ngày xấu bằng số của ngày tốt (D5); retire lần hai (D6) |
+| Insider | Người vận hành sửa, xóa hoặc phát hành lại bản ghi mà không để dấu vết |
+| M1–M3 | M1 tăng đột biến ngắn; M2 nhân (1 + α) cả ngày; M3 oracle lỗi (không phải gian lận) |
+| L1–L5 | Mẫu âm: tình huống hợp lệ dễ bị chặn nhầm (nhiều thiết bị sau một CP, chuyển issuer, Production Group, ngày quang giống nhau, inverter ngừng phát) |
+| DCR | Phần Wh trùng hoặc khai vượt đã MINT trên tổng Wh đã MINT (E1) |
+| OIR | Σ excess đã MINT / Σ y trên các lô bị tấn công: phần khai khống lọt qua (E2a) |
+| Recall | Tỉ lệ lô bị tấn công nhận REVIEW hoặc REJECT |
+| LMAX | Phần khai vượt lớn nhất mà kẻ gian khôn ngoan vẫn lọt mọi kiểm tra, tính giải tích trên 638 lô test (E2b) |
+| Lineage completeness | Tỉ lệ chứng chỉ dựng lại được đủ chuỗi chỉ từ event on-chain và kho file (E3) |
+| train, val, test | Năm 2018–2020 để khớp mô hình; 2021 để chọn ngưỡng; 2022–2023 để đánh giá, chỉ chạy một lần |

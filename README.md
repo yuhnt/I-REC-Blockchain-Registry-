@@ -10,7 +10,7 @@ Hệ thống có hai lớp tách rời:
 Người mới đọc theo thứ tự:
 
 1. [docs/FLOW.md](docs/FLOW.md): một ngày sản xuất đi qua hệ thống thế nào, ai ký gì, contract nhận gì.
-2. [docs/DECISION_RULES.md](docs/DECISION_RULES.md): từng luật và ngưỡng đang chạy, mã lý do từ chối, bảng tra "thấy event này nghĩa là gì".
+2. [docs/DECISION_RULES.md](docs/DECISION_RULES.md): từng luật và ngưỡng đang chạy, mã lý do từ chối, bảng tra "thấy event này nghĩa là gì"; mục 8 giải thích mọi thuật ngữ và ký hiệu (τ, η, k, R1, OIR, LMAX, B2, …).
 3. [docs/RESULTS.md](docs/RESULTS.md): kết quả E1, E2, E3 và cách đọc.
 4. [SPEC.md](SPEC.md) và [COMPLIANCE.md](COMPLIANCE.md): đặc tả đã khóa trước khi chạy thí nghiệm, đối chiếu điều khoản I-REC.
 5. [docs/PLAN.md](docs/PLAN.md): các giai đoạn và những gì đã làm; [docs/TESTNET.md](docs/TESTNET.md): bản deploy trên Sepolia.

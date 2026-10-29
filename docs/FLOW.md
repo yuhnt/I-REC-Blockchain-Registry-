@@ -16,7 +16,7 @@ Tài liệu thiết kế cho giai đoạn 3–5 (contract, lớp B, tích hợp,
 | **Kho file off-chain** | Lưu chuỗi 15 phút, tên file = `data_root` | Không ký; ai cũng kiểm được bằng cách tính lại hash |
 | **Dashboard** | Đọc event on-chain và kho file để dựng lineage; giao diện cho auditor | Chỉ đọc (trừ màn hình auditor khi demo) |
 
-Không vai nào được mint trực tiếp. Chỉ `DecisionGate` gọi được hàm mint của `CertificateRegistry`.
+Không vai nào gọi được `mint` trực tiếp. Chỉ `DecisionGate` gọi được `CertificateRegistry.mint`.
 
 ## 2. Định danh và mã hóa
 
@@ -115,7 +115,7 @@ Các bước:
    4. với từng ngày: ① khóa (`KEY`); lô đã có bằng chứng (`ORACLE`); ② ngân sách `issued[cp][day] + wh ≤ O1` (`BUDGET`); ③ công suất (`CAPACITY`): `wh ≤ công suất thiết bị × sunSlots × 0,25 h`, `maxSlot` của O1 ≤ công suất CP × 0,25 h, và O1 ≤ công suất CP × sunSlots × 0,25 h; lô bị bác (`LOT_REJECTED`);
    5. trạng thái lô: `CLEAR` hoặc `APPROVED` thì MINT; `REVIEW` thì giữ lại.
 6. **Kết cục.**
-   - MINT: đánh dấu khóa, cộng ngân sách, mint cho địa chỉ nhà máy, phát `Issued`.
+   - MINT: đánh dấu khóa, cộng ngân sách, gọi `mint` cho địa chỉ nhà máy, phát `Issued`.
    - Vi phạm lớp A: **không revert**, mà phát `IssueRejected(reqId, lý do)` để lý do được lưu công khai. Chỉ revert khi người gọi không có quyền hoặc dữ liệu sai định dạng.
    - Lô REVIEW: phát `IssueHeld`, không lưu yêu cầu. Issuer gửi lại sau khi auditor duyệt. Yêu cầu bị giữ chưa được MINT nên **không chiếm ngân sách CP**: ở lượt đầu, mỗi yêu cầu chỉ bị so với lượng đã MINT; khi gửi lại sau khi duyệt, ngân sách cộng dồn theo thứ tự gửi. Bộ test parity mô hình hóa đúng điều này.
    - Yêu cầu nhiều ngày (D2) đi qua các bước trên cho từng ngày trong kỳ; chỉ cần một ngày vi phạm là cả yêu cầu bị từ chối.
@@ -144,7 +144,7 @@ sequenceDiagram
 ```
 
 - Trong mô phỏng, auditor xử lý hàng đợi lúc 23:00 ngày d+1. Lô trung thực bị REVIEW nhầm chỉ bị **giữ tạm** (khoảng một ngày), không mất chứng chỉ.
-- `resolveReview` chỉ đổi trạng thái lô, không mint.
+- `resolveReview` chỉ đổi trạng thái lô, không MINT.
 
 ## 6. Nhánh kiểm tra ngẫu nhiên → Code Manager
 
@@ -278,7 +278,7 @@ Mỗi vai một trang, chọn ở thanh bên. Trong demo, giao dịch được k
 | **Nhà máy** | Tổng: sản lượng công tơ, đã phát hành, đang giữ, đã chuyển nhượng, số yêu cầu chờ auditor. **Sản xuất theo ngày**: công tơ O1, đã phát hành, số chứng chỉ, số yêu cầu bị từ chối, cờ và trạng thái lô; bấm một ngày để xem kết cục từng thiết bị (đã phát hành, bị từ chối kèm lý do, bị giữ), 4 báo cáo oracle và biểu đồ công tơ so với inverter, bức xạ tại chỗ so với vệ tinh. **Bị từ chối / bị giữ**: thời điểm, thiết bị, issuer, lý do. **Đã chuyển nhượng**: người nhận, chứng chỉ, lượng, thời điểm, giao dịch | Chuyển nhượng cho người mua (`safeTransferFrom`; thanh toán nằm ngoài hệ thống); retire nếu tự dùng |
 | **Người mua** | Chứng chỉ đang giữ; **chứng chỉ trên hệ thống** (lượng nhà máy còn giữ, có thể mua); **lịch sử nhận** (từ ai, khi nào, giao dịch); các tuyên bố đã retire, mỗi tuyên bố dựng lại từ event `Retired` | Chuyển tiếp; retire (I-REC §10, không đảo ngược) |
 | **Issuer** | Yêu cầu bị giữ vì lô REVIEW và trạng thái lô; yêu cầu bị REJECT kèm lý do | Gửi lại các yêu cầu của lô đã được duyệt |
-| **Production Auditor** | Bảng mọi chứng chỉ chờ phát hành đang bị giữ; bấm một dòng để xem chi tiết: lượng xin, cả lô, 4 báo cáo oracle (kiểm hash file gốc theo `data_root`), cờ, reason code (tỷ số nhất quán, trần), biểu đồ O1 so với O2 trong ngày. Có thêm mục lô đã phân xử và chứng chỉ đang bị tạm khóa | Duyệt hoặc bác **cả lô** (`resolveReview`, kèm hash của lý do) |
+| **Production Auditor** | Bảng mọi chứng chỉ chờ phát hành đang bị giữ; bấm một dòng để xem chi tiết: lượng xin, cả lô, 4 báo cáo oracle (kiểm hash file gốc theo `data_root`), cờ, reason code (tỉ số nhất quán, trần), biểu đồ O1 so với O2 trong ngày. Có thêm mục lô đã phân xử và chứng chỉ đang bị tạm khóa | Duyệt hoặc bác **cả lô** (`resolveReview`, kèm hash của lý do) |
 
 Các bảng là bảng bấm chọn dòng; sau mỗi giao dịch, lựa chọn được xóa để không nhảy sang chứng chỉ hoặc lô khác. Mọi bảng có cột thời điểm theo giờ nhà máy (Hardhat cục bộ: đồng hồ mô phỏng; Sepolia: giờ thật) và, trên Sepolia, liên kết giao dịch sang Etherscan. Lý do từ chối hiện cả mã on-chain lẫn giải thích. Số liệu từng inverter không lên chain; O2 là tổng 24 inverter.
 

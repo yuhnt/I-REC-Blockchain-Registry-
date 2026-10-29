@@ -150,9 +150,9 @@ Các quyết định cụ thể:
 - **Lưu O1 lần đầu.** O1 của một (CP, ngày) được lưu ở lần đầu tiên xuất hiện. Một O1 khác cho cùng (CP, ngày) gửi sau bị từ chối và phát event riêng. Kẻ gian ở R2 vì vậy phải khai tăng ngay từ đầu, đúng với mệnh đề trong proposal.
 - **Luật ③ không cần chuỗi 15 phút on-chain.** Báo cáo O1 mang `max_slot_wh`; contract kiểm `max_slot_wh ≤ cap × 0,25 h` và `wh_day ≤ cap × số giờ có nắng`.
 - **Kỳ phát hành (§8.2):** ≤ 1 năm và nằm trọn trong một năm dương lịch; không trước ngày đăng ký hiệu lực; không sau ngày đóng đăng ký; không sau thời điểm nộp. Vi phạm → REJECT `period`.
-- **Không mint đặc quyền, không nâng cấp**; allowlist oracle, issuer và verifier đặt trong constructor.
+- **Không có quyền `mint` ngoài `DecisionGate`, contract không nâng cấp được**: không có hàm admin để sửa, xóa hay mint tùy ý, không dùng proxy, nên luật không đổi được sau khi deploy. Allowlist oracle, issuer và verifier đặt trong constructor.
 - **Vai trò Code Manager (I-REC §11):** một khóa riêng, chỉ có `suspend`/`unsuspend` và `withdraw` cho chứng chỉ chưa retire. Mỗi lời gọi phát event kèm lý do. `withdraw` trả lại ngân sách CP; rút toàn bộ một thiết bị-ngày thì mở lại khóa để phát hành lại qua `DecisionGate`. Chứng chỉ đang bị khóa thì `transfer` và `retire` đều revert.
-- **Test Hardhat** gồm: D1–D6 bị revert; mint hợp lệ; chữ ký sai hoặc ngoài allowlist; O1 xung đột; kỳ phát hành sai chuẩn; ví dụ trong proposal (đã phát hành 5,0 MWh tại CP-1, thiết bị X xin thêm 1,67 MWh → REJECT); gas report. Tên test mang mã điều khoản I-REC theo `COMPLIANCE.md`.
+- **Test Hardhat** gồm: D1–D6 bị revert; MINT hợp lệ; chữ ký sai hoặc ngoài allowlist; O1 xung đột; kỳ phát hành sai chuẩn; ví dụ trong proposal (đã phát hành 5,0 MWh tại CP-1, thiết bị X xin thêm 1,67 MWh → REJECT); gas report. Tên test mang mã điều khoản I-REC theo `COMPLIANCE.md`.
 
 ### 4.2 B0 – SQLite (`rec/registry/sqlite_registry.py`)
 
@@ -219,8 +219,8 @@ Luật công suất ③ và luật kỳ phát hành thuộc lớp A (contract), 
 ### 4.6 Chỉ số (`rec/metrics/`)
 
 - **DCR, tỉ lệ lọt, exposure window, REJECT nhầm (L1, L3, L4):** từ quyết định của từng backend so với nhãn (E1).
-- **OIR, precision, recall, tỉ lệ REVIEW nhầm theo L2, L5:** từ quyết định của `gate/sim.py` so với nhãn (E2a). Precision báo cáo ở 3 mức tỷ lệ gian lận (1%, 5%, 20%). D4b và D5 tách dòng trong OIR.
-- **M3 (oracle lỗi):** tỷ lệ REVIEW và sai số MWh phát hành, không tính là gian lận.
+- **OIR, precision, recall, tỉ lệ REVIEW nhầm theo L2, L5:** từ quyết định của `gate/sim.py` so với nhãn (E2a). Precision báo cáo ở 3 mức tỉ lệ gian lận (1%, 5%, 20%). D4b và D5 tách dòng trong OIR.
+- **M3 (oracle lỗi):** tỉ lệ REVIEW và sai số MWh phát hành, không tính là gian lận.
 - **MWh thật bị giữ tạm:** tổng sản lượng thật của các lô trung thực bị REVIEW (E2a, E2b).
 - **LMAX:** tính **giải tích** trên 638 lô test, không cần mô phỏng. Với mỗi lô, cấu hình và k, A là mức chặt nhất trong các kiểm tra mà kẻ gian không sửa được (công suất; nhất quán với nguồn chưa bị sửa; trần pvlib hoặc trần AI). LMAX = Σ max(0, A − y) / Σ y, báo cáo theo k và loại ngày (E2b), ở mọi mức của dãy quét tỉ lệ REVIEW nhầm.
 - **Khoảng tin cậy 95%:** bootstrap theo ngày; 5 seed.
@@ -243,9 +243,9 @@ E2a gồm hàng chục nghìn quyết định. Chạy trên chain thì quá ch�
 Streamlit + web3.py đọc event từ Hardhat cục bộ hoặc Sepolia. Mỗi vai một trang (`dashboard/views/`), cộng trang
 "Truy vết kịch bản" đối chiếu điểm chặn kỳ vọng của từng kịch bản demo với kết quả on-chain:
 
-- lineage từng chứng chỉ: thiết bị → báo cáo O1–O4 (mở file gốc theo `data_root`) → verdict + reason code → mint → transfer → retire;
+- lineage từng chứng chỉ: thiết bị → báo cáo O1–O4 (mở file gốc theo `data_root`) → verdict + reason code → MINT → transfer → retire;
 - hàng đợi REVIEW cho auditor, kèm bằng chứng (cờ, reason code, báo cáo O1–O4); lý do REJECT;
-- tỷ lệ lineage completeness.
+- tỉ lệ lineage completeness.
 
 ## 5. Các giai đoạn
 

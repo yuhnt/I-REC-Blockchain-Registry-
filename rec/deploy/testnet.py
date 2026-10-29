@@ -208,7 +208,7 @@ def write_notes(dep: dict) -> Path:
                   f"Nạp ngày {d.get('loaded_at', '—')}: {d.get('days', '—')} ngày đầu của dòng hợp lệ (seed 101, "
                   "cấu hình Proposed), cùng D1 và D4a bị REJECT, các lô chờ Production Auditor, và một lần tạm khóa "
                   "và rút của Code Manager.", "",
-                  f"- Giao dịch: {d.get('transactions', '—')}, tổng gas {d.get('gas', 0):,}",
+                  f"- Giao dịch: {d.get('transactions', '—')}, tổng gas {format(d.get('gas', 0), ',').replace(',', '.')}",
                   f"- Yêu cầu đang bị giữ chờ auditor: {len(dep.get('held_requests', []))}", ""]
     if dep.get("notes"):
         lines += ["## Ghi chú vận hành", ""] + [f"- {n}" for n in dep["notes"]] + [""]
