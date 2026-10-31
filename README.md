@@ -15,6 +15,8 @@ Người mới đọc theo thứ tự:
 4. [SPEC.md](SPEC.md) và [COMPLIANCE.md](COMPLIANCE.md): đặc tả đã khóa trước khi chạy thí nghiệm, đối chiếu điều khoản I-REC.
 5. [docs/PLAN.md](docs/PLAN.md): các giai đoạn và những gì đã làm; [docs/TESTNET.md](docs/TESTNET.md): bản deploy trên Sepolia.
 
+Ảnh chụp từng màn hình, bản Sepolia và kịch bản quay video: [docs/demo/DEMO.md](docs/demo/DEMO.md), [docs/demo/VIDEO.md](docs/demo/VIDEO.md).
+
 Muốn xem chạy thật: dựng chain demo (`python -m rec.deploy.demo`), mở dashboard, vào trang **Truy vết kịch bản** để thấy từng kịch bản bị chặn ở đâu, rồi sang trang của từng vai.
 
 ## Cài đặt
