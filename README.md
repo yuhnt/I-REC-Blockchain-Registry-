@@ -124,6 +124,14 @@ Chạy E2 off-chain (khớp lớp B trên train, chọn ngưỡng trên val, đ�
 
 `prereg` là cách tính đúng `spec-v1`. `--select` chọn biến thể hậu kiểm của luật nhất quán, chỉ dùng train và val. `--variant day_only` chạy biến thể đã chọn. Xem `manifests/CHANGES.md`.
 
+Phân tích bổ sung sau nhận xét giữa kỳ (không cần Hardhat; kết quả ở mục cuối của [RESULTS.md](docs/RESULTS.md)):
+
+```bash
+.venv/Scripts/python -m rec.experiments.error_analysis           # ngưỡng MWh của AI lỏng ở loại ngày nào, vì sao
+.venv/Scripts/python -m rec.experiments.e2_hybrid --test --sweep # ngưỡng ghép hậu kiểm: chọn trên val, test một lần
+.venv/Scripts/python -m rec.experiments.e1 --crosscheck          # B0 tách biệt có tra chéo lúc đăng ký (I-REC §7.4.3)
+```
+
 Giai đoạn 5 (cần Hardhat; mỗi lệnh tự khởi động node):
 
 ```bash

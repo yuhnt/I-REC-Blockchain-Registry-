@@ -4,6 +4,7 @@
 - [E2 (RQ2, lớp B)](#e2-rq2-lớp-b)
 - [Parity chain – mô phỏng](#parity-chain--mô-phỏng-off-chain)
 - [E3 (chi phí và truy vết)](#e3-chi-phí-và-truy-vết)
+- [Bổ sung sau nhận xét giữa kỳ](#bổ-sung-sau-nhận-xét-giữa-kỳ)
 
 # E2 (RQ2, lớp B)
 
@@ -289,3 +290,138 @@ Kết quả:
   - bản parity cũ đã bị test nhỏ (`REC_CHAIN_TESTS=1`) ghi đè. Chạy lại parity đủ mẫu lần nữa thì trùng từng byte với bản của `run_all`.
 - Hash của các file tất định nằm ở `manifests/results-v1.sha256`. Trên máy khác, chạy `python -m rec.experiments.run_all --check`; nó báo `khop` nếu ra cùng số.
 - Không nằm trong manifest: độ trễ E3 (đo theo đồng hồ thật), nhật ký chạy, `models.pkl`.
+
+# Bổ sung sau nhận xét giữa kỳ
+
+Ba phân tích thêm vào ngày 12/11/2026, không sửa file nào đã khóa. Ở phần này, "ngưỡng MWh" là "trần" và "kỳ sản xuất" là "lô" của các mục trên. Tiêu chí của phần hậu kiểm ghi ở [manifests/CHANGES.md](../manifests/CHANGES.md), mục 12/11/2026.
+
+```bash
+.venv/Scripts/python -m rec.experiments.error_analysis
+.venv/Scripts/python -m rec.experiments.e2_hybrid --test --sweep
+.venv/Scripts/python -m rec.experiments.e1 --crosscheck
+```
+
+## 1. Rà việc dùng train, validation, test
+
+| Tham số hoặc lựa chọn | Lấy từ đâu | Có nhìn test không |
+|---|---|---|
+| Danh sách ngày, 73 ngày lỗi bị loại | Luật không dùng nhãn; η của luật lấy trên train | Luật áp cho cả test, nhưng chốt ở `spec-v1` trước khi sinh tập test |
+| η, β, γ của luật nhất quán; hệ số 0,8141 của PVWatts | Khớp trên ngày trung thực của train | Không |
+| Đặc trưng của AI (8 cột từ O4 và lịch) | Chốt ở `spec-v1` | Không |
+| Siêu tham số GBM (300 vòng, tốc độ học 0,05, lá ≥ 20 mẫu) | Đặt cố định một lần, không dò | Không; không đổi giữa các commit (`b76c094`, `a945557`) |
+| Phân vị nền 0,95; mức REVIEW nhầm 1% (nhất quán) và 4% (ngưỡng MWh); dãy quét 1–10% | Chốt ở `spec-v1` | Không |
+| τ₁₂, τ₁₃ và τ của ngưỡng MWh | Ngày trung thực của val | Không |
+| Kết quả chính (đăng ký trước) | Chạy test một lần, commit `b76c094` | — |
+| Biến thể `day_only` của luật nhất quán | Chọn trên val theo tiêu chí ghi trước | **Có**: ý tưởng nảy ra sau khi thấy kết quả test. Mang nhãn hậu kiểm, không thay kết quả chính |
+| Ngưỡng ghép `hybrid` (mục 3 dưới đây) | Chọn trên val theo tiêu chí ghi trước | **Có**: thêm vào sau khi đã thấy kết quả test của B2 và Proposed. Mang nhãn hậu kiểm |
+| Cấu hình chạy trên chain và trong demo | Đăng ký trước | — |
+
+Kết luận: kết quả chính không có tham số nào chỉnh trên test. Hai biến thể hậu kiểm được chọn trên val, nhưng lý do để thử chúng đến từ kết quả test, nên chúng chỉ là kết quả tham khảo.
+
+## 2. Error analysis: ngưỡng MWh của AI lỏng ở đâu
+
+Mỗi ngày trung thực có một **khoảng hở** = ngưỡng MWh / sản lượng thật − 1: mức khai tăng mà riêng ngưỡng MWh còn cho qua. Số liệu ở mức 4%, k = 3, bản đăng ký trước. Bảng đầy đủ ở `artifacts/results/error_analysis/`.
+
+**Theo loại ngày (test; trong ngoặc là val):**
+
+| | Quang | Mây vừa | Nhiều mây |
+|---|---|---|---|
+| Số ngày | 514 (247) | 80 (39) | 44 (35) |
+| Phần sản lượng | 89,9% (90,1%) | 8,2% (7,2%) | 1,9% (2,7%) |
+| Khoảng hở trung vị, B2 | 19,2% (20,3%) | 25,6% (14,3%) | 26,4% (15,5%) |
+| Khoảng hở trung vị, Proposed | **10,8%** (11,2%) | 30,8% (23,4%) | **86,5%** (114,6%) |
+| LMAX, B2 | 11,7% (11,3%) | 16,1% (15,5%) | 24,4% (28,0%) |
+| LMAX, Proposed | 10,7% (9,9%) | 18,8% (21,4%) | 60,6% (93,6%) |
+| Phần MWh lọt nằm ở loại ngày này, B2 | 85,5% | 10,7% | 3,7% |
+| Phần MWh lọt nằm ở loại ngày này, Proposed | 78,2% | 12,5% | 9,2% |
+| REVIEW nhầm do ngưỡng MWh, B2 | 0,6% (0%) | 5,0% (10,3%) | **15,9%** (22,9%) |
+| REVIEW nhầm do ngưỡng MWh, Proposed | 4,1% (3,6%) | 3,8% (2,6%) | 4,5% (5,7%) |
+
+Trên **val**, LMAX ở k = 3 của Proposed là 13,0%, cao hơn B2 (12,0%). Tức là ngay trên val, AI đã không hơn ngưỡng vật lý.
+
+**Vì sao AI lỏng ở ngày nhiều mây:**
+
+| | Quang | Mây vừa | Nhiều mây |
+|---|---|---|---|
+| Số ngày train | 804 | 132 | 90 |
+| Lệch bức xạ vệ tinh so với cảm biến tại chỗ, trung vị (test) | 7,1% | 11,0% | 18,5% |
+| Sản lượng thật / nền của B2, trung vị (test) | 1,06 | 1,01 | 1,00 |
+| Sản lượng thật / nền của Proposed, trung vị (test) | 0,98 | 0,83 | **0,58** |
+
+- Nền của B2 là ước lượng **trung tâm** (PVWatts nhân hệ số trung vị), cộng một biên chung 26,9%. Nền của Proposed là **phân vị 0,95** cộng biên 8,1%.
+- Ở ngày nhiều mây, bức xạ vệ tinh lệch nhiều (18,5%) và train chỉ có 90 ngày. Phân vị 0,95 vì vậy nằm rất xa giá trị điển hình: sản lượng thật chỉ bằng 58% nền. Ở ngày quang con số này là 98%.
+- B2 chặt ở ngày nhiều mây vì nó **chấp nhận REVIEW nhầm 16–23% số ngày nhiều mây**. Proposed rải REVIEW nhầm đều khoảng 4% cho mọi loại ngày. Hai cấu hình có cùng tỉ lệ REVIEW nhầm theo số ngày trên val, nhưng đặt chỗ REVIEW nhầm khác nhau.
+
+**Theo tình trạng inverter (test):**
+
+| | Bình thường | Ngừng phát thật | Ngừng ghi số liệu |
+|---|---|---|---|
+| Số ngày | 370 | 259 | 9 |
+| Phần sản lượng | 57,2% | 41,5% | 1,3% |
+| Khoảng hở trung vị, B2 / Proposed | 16,0% / 8,4% | 32,6% / 25,0% | 53,8% / 42,6% |
+| LMAX, B2 / Proposed | 8,3% / 8,5% | **17,5% / 17,1%** | 25,8% / 25,8% |
+| Phần MWh lọt nằm ở nhóm này, B2 / Proposed | 38,5% / 39,6% | **58,8% / 57,8%** | 2,7% / 2,7% |
+| REVIEW nhầm do luật nhất quán | 2,4% | 2,3% | 11,1% |
+
+"Ngừng ghi số liệu" là ngày có inverter báo 0 mà công tơ cao hơn η · tổng inverter trên 10%; các ngày inverter báo 0 còn lại là "ngừng phát thật".
+
+- **Gần 60% lượng khai khống còn lọt nằm ở ngày ngừng phát thật.** Hôm đó nhà máy phát ít hơn mức thời tiết cho phép, nên ngưỡng MWh nào suy từ thời tiết cũng để hở phần của inverter đã tắt. Ở k = 3, kẻ gian sửa luôn số inverter, nên luật nhất quán không thấy. Đây là giới hạn của mọi ngưỡng chỉ dựa vào vệ tinh, không riêng AI.
+- Ngày ngừng ghi số liệu chỉ có 9 ngày test (1,3% sản lượng). Chúng làm luật nhất quán lỏng (mục 6 của E2), nhưng không phải nguồn chính của phần lọt ở k = 3.
+
+## 3. Cải tiến hậu kiểm: ngưỡng ghép `hybrid`
+
+Hai ứng viên, tiêu chí ghi trước khi chạy, chọn trên val bằng LMAX ở k = 3:
+
+| Trên val | B2 | Proposed | `hybrid` | `ratio` |
+|---|---|---|---|---|
+| LMAX k = 3 | 12,04% | 13,01% | **11,50%** | 11,78% |
+| LMAX ngày quang / nhiều mây | 11,3% / 28,0% | 9,9% / 93,6% | 10,2% / 36,5% | 10,1% / 49,2% |
+| REVIEW nhầm | 4,7% | 4,7% | 4,7% | 5,0% |
+
+- `hybrid`: ngưỡng của ngày = min(PVWatts · 1,385; Q̂₀.₉₅ · 1,088). Hai biên lấy ở cùng mức phân vị 2,49% trên val, để hợp hai cờ là 3,7% số ngày.
+- `ratio`: GBM học tỉ số công tơ / PVWatts.
+- Chọn `hybrid`. Test chạy một lần:
+
+| Trên test | B2 | Proposed | `hybrid` |
+|---|---|---|---|
+| LMAX k = 1 / 2 / 3 | 10,76% / 11,38% / 12,33% | 10,02% / 10,62% / 12,29% | 10,15% / 10,76% / **11,84%** |
+| LMAX k = 3: quang / mây vừa / nhiều mây | 11,7% / 16,1% / 24,4% | 10,7% / 18,8% / 60,6% | 10,9% / 17,7% / 30,8% |
+| REVIEW nhầm (mọi ngày trung thực) | 5,2% | 7,1% | 6,7% |
+| MWh thật bị giữ tạm | 4,4% | 7,6% | 7,1% |
+
+Hiệu LMAX ở k = 3, khoảng tin cậy 95% bootstrap theo ngày: B2 − `hybrid` = +0,49 điểm [+0,30; +0,68]; Proposed − `hybrid` = +0,45 điểm [+0,22; +0,75].
+
+**Đọc kết quả này thế nào.** `hybrid` thấp hơn B2 0,49 điểm, nhưng trên test nó REVIEW nhầm nhiều hơn B2 1,5 điểm (6,7% so với 5,2%). Cùng mức REVIEW nhầm trên val không bảo đảm cùng mức trên test. Bảng quét dưới đây so ở mức REVIEW nhầm **đo trên test** (mô tả, không dùng để chọn gì):
+
+| q trên val | B2: LMAX / REVIEW nhầm | Proposed: LMAX / REVIEW nhầm | `hybrid`: LMAX / REVIEW nhầm |
+|---|---|---|---|
+| 1% | 13,27% / 3,1% | 12,83% / 5,3% | 13,09% / 3,1% |
+| 2% | 12,98% / 3,4% | 12,59% / 6,3% | 12,03% / 6,1% |
+| 4% | 12,33% / 5,2% | 12,29% / 7,1% | 11,84% / 6,7% |
+| 5% | 12,03% / 7,1% | 11,89% / 9,7% | 11,64% / 7,2% |
+| 10% | 11,35% / 9,3% | 11,03% / 14,7% | 10,58% / 12,9% |
+
+- Ở REVIEW nhầm khoảng 7% trên test: B2 12,03%, Proposed 12,29%, `hybrid` 11,64–11,84%. Tức là **ở cùng mức REVIEW nhầm đo trên test, Proposed không hơn B2**, còn `hybrid` hơn B2 khoảng 0,2–0,4 điểm.
+- Mô hình AI trôi giữa val và test nhiều hơn ngưỡng vật lý: đặt 4% trên val thì ngưỡng của Proposed REVIEW nhầm 4,1% số ngày test, của B2 là 2,2%.
+- Kết luận trong phạm vi đã thử: AI một mình chưa hơn ngưỡng vật lý; ghép hai ngưỡng cho lợi ích nhỏ (dưới 0,5 điểm trên mức lọt khoảng 12%), và đây là kết quả hậu kiểm. `hybrid` chưa được chạy với kẻ gian ngây thơ (E2a) và chưa đưa lên chain.
+
+## 4. B0 tách biệt có tra chéo lúc đăng ký (I-REC §7.4.3)
+
+Quy trình I-REC đã có một bước kiểm tra giữa các hệ thống: khi đăng ký, issuer tra các registry đã biết. Baseline mới `CrossCheckRegistry` mô phỏng bước này trên B0 tách biệt, ở hai mức, và giả định bước tra **luôn chính xác** (trường hợp tốt nhất cho quy trình thủ công). Chuyển issuer hợp lệ (§16.3) không bị ảnh hưởng. Cùng dòng sự kiện và cách tính như E1, 300 ca mỗi kịch bản; mã kịch bản theo code.
+
+| Kịch bản | B0 tách biệt (E1) | + tra theo mã thiết bị | + tra theo điểm đấu nối | Sổ chung, chain (E1) |
+|---|---|---|---|---|
+| D3 đăng ký lại mã ở issuer khác | 178 ca lọt | **0** (bước đăng ký) | 0 | 0 |
+| D4a thiết bị mới cùng CP | 299 | 299 | **0** (bước đăng ký) | 0 |
+| D4b một phần khối đăng ký thành thiết bị mới | 261 | 261 | **0** (bước đăng ký) | 0 |
+| D5 thay ngày Y bằng dữ liệu ngày X | 128 (tỉ lệ lọt 9%) | 128 | **128** | 0 (ngân sách CP) |
+| D1, D2, D6 | 0 | 0 | 0 | 0 |
+
+REJECT nhầm trên L1, L3, L4: 0 ở cả hai mức.
+
+- Tra theo **mã thiết bị** chỉ chặn được D3. Bản trùng đổi mã (D4a, D4b) qua được, vì mã mới chưa có ở đâu.
+- Tra theo **điểm đấu nối** chặn cả D3, D4a, D4b ngay lúc đăng ký, nếu bước tra không sót.
+- Phần còn lại là D5: sau khi một thiết bị chuyển issuer hợp lệ, mỗi CSDL chỉ thấy phần ngân sách của mình, nên phát hành vượt số công tơ không bị thấy lúc phát hành. Đối soát định kỳ tìm ra sau 4–18 ngày (mục 2 của E1).
+- Như vậy lợi ích của sổ chung so với quy trình hiện có gồm hai phần:
+  - thay một bước tra thủ công, dựa vào khai báo, bằng kiểm tra tự động. Phần này lớn hay nhỏ tùy tỉ lệ sót của bước tra thủ công, là thứ đề tài **không đo được**;
+  - kiểm tra ngân sách ngay lúc phát hành, là thứ registry tách biệt không làm được dù tra chéo hoàn hảo.

@@ -3,6 +3,8 @@
 Chạy: python -m rec.experiments.e1 [--backends b0_separate,b0_shared,chain] [--seeds 101,102] [--streams D1,D3]
            [--run-only --port 8546]   chỉ chạy và ghi nhật ký (để chạy song song mỗi seed một node Hardhat)
            [--metrics-only]           chỉ tính chỉ số từ nhật ký đã ghi
+           [--crosscheck]             baseline bổ sung: b0_separate có tra chéo lúc đăng ký (I-REC §7.4.3) ở hai mức
+                                      (mã thiết bị, điểm đấu nối); ghi artifacts/results/e1_crosscheck/
 Ghi vào artifacts/results/e1/:
   decisions/<backend>/<dòng>.csv   nhật ký quyết định
   cases.csv                        mỗi ca tấn công: kết cục, điểm chặn, Wh lọt, exposure window
@@ -21,11 +23,16 @@ import pandas as pd
 
 from rec import config
 from rec.registry.base import DAY_S
-from rec.registry.sqlite_registry import SeparateRegistry, SqliteRegistry
+from rec.registry.sqlite_registry import CrossCheckRegistry, SeparateRegistry, SqliteRegistry
 from rec.sim.runner import load_stream, plant_from_config, run_stream
 
 T_REC = (7, 30)
 LIFECYCLE = {"D6", "insider"}
+SQLITE = {"b0_separate": SeparateRegistry, "b0_shared": SqliteRegistry,
+          "b0_check_id": lambda plant: CrossCheckRegistry(plant, "id"),
+          "b0_check_cp": lambda plant: CrossCheckRegistry(plant, "cp")}
+SEPARATE = ("b0_separate", "b0_check_id", "b0_check_cp")  # mỗi issuer một CSDL: có bước đối soát chéo
+CROSSCHECK_ATTACKS = ["D1", "D2", "D3", "D4a", "D4b", "D5", "D6"]
 
 
 def _arg(argv: list[str], name: str, default: list[str]) -> list[str]:
@@ -42,15 +49,15 @@ def streams_for(attacks: list[str], seeds: list[int]) -> list[tuple[str, str, st
     return out
 
 
-def run(backends: list[str], streams: list[tuple[str, str, str | None]], port: int = 8545
-        ) -> dict[str, dict[str, pd.DataFrame]]:
+def run(backends: list[str], streams: list[tuple[str, str, str | None]], port: int = 8545,
+        out_name: str = "e1") -> dict[str, dict[str, pd.DataFrame]]:
     scen = config.load("scenarios")
     plant = plant_from_config(scen["plant"])
     artifacts = config.resolve_path("artifacts")
     e1_dir = artifacts / "testset" / "e1"
     days = pd.read_parquet(artifacts / "days.parquet")
     sun = dict(zip(days["day"].astype(int), days["sun_slots"].astype(int)))
-    out_dir = artifacts / "results" / "e1" / "decisions"
+    out_dir = artifacts / "results" / out_name / "decisions"
     issuer_a = scen["plant"]["issuers"][0]
     logs: dict[str, dict[str, pd.DataFrame]] = {}
     chain = node = None
@@ -71,10 +78,10 @@ def run(backends: list[str], streams: list[tuple[str, str, str | None]], port: i
                     chain.gas_log = []
                     backend = chain
                 else:
-                    backend = (SeparateRegistry if backend_name == "b0_separate" else SqliteRegistry)(plant)
+                    backend = SQLITE[backend_name](plant)
                 events = load_stream(e1_dir, base, overlay)
                 log = pd.DataFrame(run_stream(backend, events, sun, issuer_a))
-                if backend_name == "b0_separate":
+                if backend_name in SEPARATE:
                     found = pd.DataFrame(backend.reconcile(events[-1].t))
                     log["detected_rule"] = log["id"].map(dict(zip(found.get("req_id", []), found.get("rule", []))))
                 else:
@@ -90,7 +97,7 @@ def run(backends: list[str], streams: list[tuple[str, str, str | None]], port: i
             node.close()
     if gas_rows:
         tag = "_".join(sorted({n.rsplit("_s", 1)[1] for n, _, _ in streams}))
-        pd.DataFrame(gas_rows).to_csv(artifacts / "results" / "e1" / f"gas_s{tag}.csv", index=False)
+        pd.DataFrame(gas_rows).to_csv(artifacts / "results" / out_name / f"gas_s{tag}.csv", index=False)
     return logs
 
 
@@ -228,21 +235,23 @@ def main(argv: list[str]) -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     scen = config.load("scenarios")
     exp = scen["experiments"]["E1"]
-    backends = _arg(argv, "--backends", list(exp["backends"]))
+    cross = "--crosscheck" in argv  # baseline bổ sung: b0_separate có tra chéo lúc đăng ký, ghi thư mục riêng
+    out_name = "e1_crosscheck" if cross else "e1"
+    backends = _arg(argv, "--backends", ["b0_check_id", "b0_check_cp"] if cross else list(exp["backends"]))
     seeds = [int(s) for s in _arg(argv, "--seeds", [str(s) for s in scen["seeds"]["test"]])]
-    attacks = _arg(argv, "--streams", list(exp["attacks"]))
+    attacks = _arg(argv, "--streams", CROSSCHECK_ATTACKS if cross else list(exp["attacks"]))
     streams = streams_for(attacks, seeds)
     if "--metrics-only" in argv:  # đọc nhật ký đã chạy (ví dụ chạy song song từng seed bằng --run-only)
-        dec = config.resolve_path("artifacts") / "results" / "e1" / "decisions"
+        dec = config.resolve_path("artifacts") / "results" / out_name / "decisions"
         logs = {b: {n: pd.read_csv(dec / b / f"{n}.csv", keep_default_na=False, na_values=[""])
                     for n, _, _ in streams} for b in backends}
     else:
         port = int(_arg(argv, "--port", ["8545"])[0])
-        logs = run(backends, streams, port)
+        logs = run(backends, streams, port, out_name)
         if "--run-only" in argv:
             return 0
     res = metrics(logs)
-    out = config.resolve_path("artifacts") / "results" / "e1"
+    out = config.resolve_path("artifacts") / "results" / out_name
     for k, df in res.items():
         df.to_csv(out / f"{k}.csv", index=False)
     pd.set_option("display.width", 200)

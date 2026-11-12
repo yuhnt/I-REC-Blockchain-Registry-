@@ -17,21 +17,15 @@ import numpy as np
 import pandas as pd
 
 from rec import config
-from rec.checks.consistency import STATS, VARIANTS, fit
-from rec.data import pvdaq
+from rec.checks.consistency import VARIANTS
 from rec.gate.auditor import Auditor
-from rec.gate.sim import PROFILES, device_caps, layer_a, lot_row
+from rec.gate.sim import PROFILES, layer_a, lot_row
 from rec.generator.cases_e2 import apply_case
-from rec.generator.common import INVERTER_MAX_W, allocate, load_days
+from rec.generator.common import allocate
 from rec.metrics.e2 import bootstrap_diff, decide, lmax, lmax_scale, summarize
 from rec.model import ai
-from rec.model.calibrate import ceiling_tau, consistency_thresholds
-from rec.physics.pvwatts import expected_day_wh, fit_scale
+from rec.sim.layer_b import CEILING_BASE, CTX_KEYS, fit_and_calibrate
 
-SLOT_HOURS = 0.25
-CEILING_BASE = {"B2": "pv", "Proposed": "ai", "A1": "ai_o3", "A2": "ai_linear"}
-_CTX = ("thr", "devices", "caps", "cp_cap_w", "min_cov", "artifacts", "days_df", "data", "temps", "split", "cons",
-        "pv_scale", "models", "base_day", "hs", "tau_cons", "q_cons", "cons_rate", "sweep", "tau_ceil", "ceil_rate")
 SELECT_SLACK = 0.005  # `hour` được chọn nếu kém `day_only` không quá 0,5 điểm phần trăm (CHANGES.md)
 
 
@@ -48,60 +42,11 @@ def _random_check(feat: pd.DataFrame, dec: pd.DataFrame, auditor: Auditor, ps: l
     return res
 
 
-def _fit_and_calibrate(window) -> dict:
-    """Khớp lớp B trên train và chọn ngưỡng trên val; không đụng tới tập test."""
-    scen, thr = config.load("scenarios"), config.load("thresholds")
-    plant = scen["plant"]
-    devices = list(plant["devices"])
-    caps = device_caps(plant["devices"], INVERTER_MAX_W)
-    cp_cap_w = INVERTER_MAX_W * sum(len(v) for v in plant["devices"].values())
-    min_cov = thr["completeness"]["min_daytime_coverage"]
-    artifacts = config.resolve_path("artifacts")
-
-    days_df, data = load_days()
-    days_df = days_df.set_index("day")
-    slots = pd.read_parquet(artifacts / "slots.parquet")
-    temps = {int(d): g["site_temp_c"].to_numpy(float) for d, g in slots.groupby("day", sort=True)}
-    meta = pvdaq.read_metadata(config.resolve_path("pvdaq_2107"))
-    split = {name: sorted(int(d) for d in days_df.index[days_df["split"] == name]) for name in ("train", "val", "test")}
-    y = pd.Series({d: data[d].y_wh for d in data}, dtype=float)
-
-    # 1. Khớp trên train (chỉ ngày trung thực).
-    cons = fit({d: data[d].series for d in data}, {d: data[d].sun for d in data}, temps, split["train"],
-               cp_cap_w * SLOT_HOURS)
-    pv_day = expected_day_wh(slots, meta["dc_kw"], cp_cap_w / 1000)
-    pv_scale = fit_scale(pv_day, y, split["train"])
-    X, Xa1 = ai.features(days_df), ai.features_a1(days_df)
-    rs = config.load("features")["model"]["random_state"]
-    q_base = thr["ceiling"]["ai"]["base_quantile"]
-    models = {"ai": ai.train(X.loc[split["train"]], y.loc[split["train"]], "gbm", q_base, rs),
-              "ai_linear": ai.train(X.loc[split["train"]], y.loc[split["train"]], "linear", q_base, rs),
-              "ai_o3": ai.train(Xa1.loc[split["train"]], y.loc[split["train"]], "gbm", q_base, rs)}
-    base_day = {"pv": (pv_scale * pv_day).reindex(days_df.index),
-                "ai": pd.Series(ai.predict(models["ai"], X), index=days_df.index),
-                "ai_linear": pd.Series(ai.predict(models["ai_linear"], X), index=days_df.index),
-                "ai_o3": pd.Series(ai.predict(models["ai_o3"], Xa1), index=days_df.index)}
-
-    # 2. Thống kê của lô trung thực, chọn ngưỡng trên val.
-    hs = pd.DataFrame({d: lot_row(data[d].series, data[d], temps[d], cons, window) for d in data}).T
-    hs = hs.apply(pd.to_numeric)
-    tau_cons, q_cons, cons_rate = consistency_thresholds(hs.loc[split["val"], list(STATS)],
-                                                         thr["consistency_a"]["false_review"])
-    sweep = thr["ceiling"]["false_review_sweep"]
-    tau_ceil, ceil_rate = {}, {}
-    for cfg, base in CEILING_BASE.items():
-        for q in sweep:
-            t, r = ceiling_tau(hs.loc[split["val"], "y_wh"].to_numpy(float), base_day[base].loc[split["val"]].to_numpy(),
-                               q)
-            tau_ceil[(cfg, q)], ceil_rate[(cfg, q)] = t, r
-    return {k: v for k, v in locals().items() if k in _CTX}
-
-
 def select_variant() -> int:
     """Chọn biến thể theo tiêu chí ghi trước trong CHANGES.md, chỉ dùng train và val."""
     rows = {}
     for variant, window in VARIANTS.items():
-        ctx = _fit_and_calibrate(window)
+        ctx = fit_and_calibrate(window)
         val, prof, q = ctx["hs"].loc[ctx["split"]["val"]], PROFILES["Proposed"], ctx["thr"]["ceiling"]["false_review_main"]
         base = ctx["base_day"]["ai"].loc[ctx["split"]["val"]].to_numpy()
         s = lmax_scale(val, 1, ctx["tau_cons"], prof, base, ctx["tau_ceil"][("Proposed", q)], ctx["min_cov"],
@@ -129,9 +74,9 @@ def main(argv: list[str]) -> int:
         return select_variant()
     variant = argv[argv.index("--variant") + 1] if "--variant" in argv else "prereg"
     window = VARIANTS[variant]
-    ctx = _fit_and_calibrate(window)
+    ctx = fit_and_calibrate(window)
     (thr, devices, caps, cp_cap_w, min_cov, artifacts, days_df, data, temps, split,
-     cons, pv_scale, models, base_day, hs, tau_cons, q_cons, cons_rate, sweep, tau_ceil, ceil_rate) = (ctx[k] for k in _CTX)
+     cons, pv_scale, models, base_day, hs, tau_cons, q_cons, cons_rate, sweep, tau_ceil, ceil_rate) = (ctx[k] for k in CTX_KEYS)
     model_dir, res_dir = artifacts / "model" / variant, artifacts / "results" / variant
     model_dir.mkdir(parents=True, exist_ok=True)
     res_dir.mkdir(parents=True, exist_ok=True)

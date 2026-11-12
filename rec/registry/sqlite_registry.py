@@ -374,3 +374,28 @@ class SeparateRegistry(Registry):
                 found.append({"req_id": req_id, "issuer": issuer, "t_mint": t_mint, "rule": "budget"})
             seen.add(key)
         return found
+
+
+class CrossCheckRegistry(SeparateRegistry):
+    """b0_separate có tra chéo lúc đăng ký (I-REC §7.4.3: issuer kiểm tra các registry đã biết).
+
+    Trước khi nhận một đăng ký mới, issuer tra CSDL của các issuer khác; bước tra được giả định luôn chính xác.
+    - level "id": từ chối nếu mã thiết bị đang có đăng ký còn hiệu lực ở issuer khác;
+    - level "cp": thêm điều kiện điểm đấu nối đó chưa có thiết bị nào còn hiệu lực ở issuer khác.
+    Chuyển issuer hợp lệ (§16.3) đi qua `transfer_registration`, không qua bước tra này.
+    """
+
+    def __init__(self, plant: Plant, level: str = "cp"):
+        super().__init__(plant)
+        self.level = level
+        self.name = f"b0_check_{level}"
+
+    def register_device(self, dev, t):
+        for issuer, db in self.dbs.items():
+            if issuer == dev.issuer:
+                continue
+            if db.one("SELECT 1 FROM devices WHERE device_id = ? AND end_day = ?", dev.device_id, OPEN):
+                return Outcome("revert", "RegisteredElsewhere")
+            if self.level == "cp" and db.one("SELECT 1 FROM devices WHERE cp_id = ? AND end_day = ?", dev.cp_id, OPEN):
+                return Outcome("revert", "CPRegisteredElsewhere")
+        return super().register_device(dev, t)

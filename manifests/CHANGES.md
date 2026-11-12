@@ -106,3 +106,21 @@ Không sửa file nào đã khóa ở `spec-v1` hay `testset-v1`. Các mục dư
    - Ngày ngừng ghi: hết REVIEW nhầm.
    - Ngày ngừng phát thật: kẻ gian ở k = 1 khai thêm được phần của inverter đã tắt.
    - Nếu làm thì là một biến thể hậu kiểm, theo đúng quy trình của `day_only`.
+
+## Sau nhận xét giữa kỳ (12/11/2026): error analysis và một cải tiến hậu kiểm cho ngưỡng MWh
+
+Không sửa file nào đã khóa ở `spec-v1`, `testset-v1`. Kết quả chính vẫn là lần chạy đăng ký trước.
+
+1. **Error analysis** (`rec/experiments/error_analysis.py`, ghi `artifacts/results/error_analysis/`): chỉ thống kê, không chọn tham số. Val và test báo cáo tách riêng.
+2. **Cải tiến hậu kiểm, tiêu chí ghi trước khi chạy** (`rec/experiments/e2_hybrid.py`). Đây là biến thể thêm vào **sau khi đã thấy kết quả test** của B2 và Proposed, nên mang nhãn hậu kiểm.
+   - **Lý do (từ cột val của error analysis):** trên ngày nhiều mây của val, ngưỡng của Proposed cho khai tăng trung vị 115%, của B2 là 15%; trên ngày quang thì ngược lại (11% so với 20%).
+   - **Hai ứng viên,** đều chỉ dùng O4 và thông số tĩnh, khớp trên train:
+     - `hybrid`: ngưỡng của ngày = min(ngưỡng B2, ngưỡng Proposed). Hai τ lấy ở cùng một mức phân vị q′ trên val; q′ là mức lớn nhất mà hợp hai cờ không vượt 4% số ngày trung thực của val.
+     - `ratio`: mô hình GBM phân vị 0,95 học tỉ số (sản lượng công tơ / nền PVWatts) thay vì học sản lượng; ngưỡng = nền PVWatts · tỉ số dự đoán · (1 + τ), τ chọn trên val ở mức 4%. Siêu tham số GBM giữ nguyên như Proposed.
+   - **Tiêu chí chọn, chỉ dùng val:** tính LMAX giải tích ở k = 3 trên ngày trung thực của val, luật nhất quán giữ nguyên bản đăng ký trước. Chọn ứng viên có LMAX nhỏ nhất. Nếu ứng viên đó không thấp hơn cả B2 lẫn Proposed trên val thì ghi "không cải tiến" và **không chạy test**.
+   - **Test** chỉ chạy cho ứng viên được chọn, đúng một lần: LMAX theo k và loại ngày, tỉ lệ REVIEW nhầm, hiệu so với B2 kèm khoảng tin cậy bootstrap theo ngày.
+   - **Kết quả chọn trên val** (`artifacts/results/hybrid/selection.json`): LMAX k = 3 của B2 12,04%, Proposed 13,01%, `hybrid` 11,50%, `ratio` 11,78%. Chọn `hybrid` (τ của PVWatts 38,5%, τ của AI 8,8%, cùng mức phân vị 2,49%).
+   - **Kết quả test của `hybrid`** (chạy một lần, `test.json`): LMAX k = 3 là 11,84%; B2 − `hybrid` = +0,49 điểm, CI [+0,30; +0,68]. REVIEW nhầm trên test 6,7% (B2 5,2%, Proposed 7,1%).
+   - **Thêm sau khi có kết quả test, chỉ để mô tả:** `--sweep` tính LMAX và REVIEW nhầm trên test theo dãy q của SPEC cho B2, Proposed và `hybrid` (`sweep_test.csv`), để so ở cùng mức REVIEW nhầm đo trên test. Không dùng để chọn tham số nào.
+   - `hybrid` chưa chạy E2a và chưa đưa lên chain; verifier on-chain vẫn dùng bản đăng ký trước.
+3. **B0 tách biệt có tra chéo lúc đăng ký** (`CrossCheckRegistry` trong `rec/registry/sqlite_registry.py`, `python -m rec.experiments.e1 --crosscheck`, ghi `artifacts/results/e1_crosscheck/`). Baseline thêm cho E1, mô phỏng bước kiểm tra của I-REC §7.4.3 ở hai mức (mã thiết bị, điểm đấu nối), giả định bước tra luôn chính xác. Kết quả của E1 (`results-v1`) không đổi.
