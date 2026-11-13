@@ -99,7 +99,7 @@ def figure_model(out: Path) -> None:
     fig, ax = canvas(W, H)
     text(ax, 40, 34, "Mô hình đề xuất: từ thiết bị đo đến chứng chỉ và truy vết", size=19, bold=True)
     text(ax, 40, 66, "Một nhà máy PV (PVDAQ 2107) sau một điểm đấu nối lưới (CP). R1 = số đo đối soát (độc lập), "
-                     "R2 = số đo do chủ dự án cung cấp. Lô = chứng chỉ của cả nhà máy trong một ngày.",
+                     "R2 = số đo do chủ dự án cung cấp. Kỳ sản xuất = chứng chỉ của cả nhà máy trong một ngày.",
          size=10, color=MUTED)
 
     # Tầng 1
@@ -146,11 +146,11 @@ def figure_model(out: Path) -> None:
         lines=("thiếu, hoặc phủ < 95% slot", "ban ngày → REVIEW", "slot thiếu để trống, không điền 0"))
     box(ax, 360, 634, 720, 110, PLAIN, title="② Nhất quán, một phía",
         lines=("O1 so với η · ΣO2 và với E₃ (POA, nhiệt độ tại chỗ), ở mức ngày và mức 15 phút",
-               "chỉ REVIEW khi O1 cao hơn quá ngưỡng · ngưỡng: 1% lô trung thực trên val",
+               "chỉ REVIEW khi O1 cao hơn quá dung sai · dung sai: 1% kỳ trung thực bị REVIEW nhầm trên val",
                "O1 thấp hơn (inverter hỏng) không phải khai khống"))
-    box(ax, 1100, 634, 340, 110, PLAIN, title="③ Trần sản lượng",
-        lines=("B2: pvlib(NSRDB) × (1 + τ₄)", "Proposed: GB phân vị 0,95 × (1 + τ_C)",
-               "ngưỡng: riêng trần 4% lô trung thực"))
+    box(ax, 1100, 634, 340, 110, PLAIN, title="③ Ngưỡng MWh",
+        lines=("B2: 0,814 × PVWatts(NSRDB) × (1 + τ₄)", "Proposed: GB phân vị 0,95 × (1 + τ_C)",
+               "τ: riêng ngưỡng MWh 4% REVIEW nhầm"))
     arrow(ax, (137, 554), (137, 634))
     arrow(ax, (555, 554), (555, 634))
     arrow(ax, (910, 554), (910, 634))
@@ -160,7 +160,7 @@ def figure_model(out: Path) -> None:
     box(ax, 60, 762, 280, 78, PLAIN, title="Kho file off-chain",
         lines=("chuỗi 15 phút, tên file = data_root", "ai cũng tính lại hash để kiểm"), ts=10.3, fs=9.2)
     box(ax, 360, 762, 720, 78, PLAIN, title="Verdict có chữ ký (EIP-712)",
-        lines=("cờ: thiếu báo cáo / không nhất quán / vượt trần · trần · reason code · hash mô hình",))
+        lines=("cờ: thiếu báo cáo / không nhất quán / vượt ngưỡng MWh · ngưỡng · reason code · hash mô hình",))
     arrow(ax, (1270, 744), (1270, 801), (1080, 801))
 
     # Tầng 4
@@ -178,16 +178,16 @@ def figure_model(out: Path) -> None:
     text(ax, 1150, 1104, "chặn kịch bản", size=10, bold=True, color=MUTED)
     rows = (
         ("Đăng ký hợp lệ; kỳ phát hành ≤ 1 năm, trong một năm dương lịch (§8.2)", "kỳ sai chuẩn"),
-        ("① Khóa (thiết bị, ngày) chưa phát hành; vòng đời", "D1, D2, D6"),
-        ("② Ngân sách CP: Σ phát hành của mọi thiết bị sau CP ≤ O1", "D4, D5 (tất định ở R1)"),
-        ("③ Công suất: mỗi 15 phút ≤ công suất AC × 0,25 h", "M1 lớn"),
-        ("④ Verdict của lớp B có cờ", "M1, M2; D4b, D5 ở R2"),
+        ("① Khóa (thiết bị, ngày) chưa phát hành; vòng đời", "D1, D2, D5"),
+        ("② Ngân sách CP: Σ phát hành của mọi thiết bị sau CP ≤ O1", "D4, M3 (tất định ở R1)"),
+        ("③ Công suất: mỗi 15 phút và mỗi ngày ≤ công suất AC", "M1 lớn"),
+        ("④ Verdict của lớp B có cờ", "M1, M2; D4b, M3 ở R2"),
     )
     for k, (rule, blocks) in enumerate(rows):
         yy = 1136 + k * 28
         text(ax, 440, yy, rule, size=10)
         text(ax, 1150, yy, blocks, size=10)
-    text(ax, 440, 1286, "Ở R2, D4b/D5 buộc kẻ gian khai tăng O1 để qua ②, nên được xử lý như khai khống ở ④",
+    text(ax, 440, 1286, "Ở R2, D4b/M3 buộc kẻ gian khai tăng O1 để qua ②, nên được xử lý như khai khống ở ④",
          size=9.2, color=MUTED)
     arrow(ax, (950, 840), (950, 1080))  # đi giữa DeviceRegistry và Code Manager
     arrow(ax, (680, 1062), (680, 1080))
@@ -210,7 +210,7 @@ def figure_model(out: Path) -> None:
             arrow(ax, (px + 170, 1486), (px + 210, 1486))
     for k, s in enumerate((
             "retire = burn + người thụ hưởng, mục đích, nơi tiêu thụ, kỳ báo cáo; không sửa được (§10)",
-            "chứng chỉ đã retire không chuyển nhượng hay retire lại được → chặn D6",
+            "chứng chỉ đã retire không chuyển nhượng hay retire lại được → chặn D5",
             "issuer không sửa được bản ghi; Code Manager luôn để lại event công khai → không sửa lặng lẽ được")):
         text(ax, 440, 1526 + k * LINE_STEP, s, size=9.6, color=MUTED)
     arrow(ax, (1280, 1400), (1280, 1428))
@@ -219,7 +219,7 @@ def figure_model(out: Path) -> None:
         lines=("gửi qua Issuer A hoặc B", "yêu cầu phát hành", "(thiết bị, ngày, MWh)"))
     arrow(ax, (370, 1140), (420, 1140))
     box(ax, 40, 1330, 330, 150, REVIEW, title="Production Auditor", center=True,
-        lines=("(§8.5.4, off-chain)", "phân xử lô REVIEW", "kiểm tra ngẫu nhiên p% số lô", "đã MINT → báo Code Manager"))
+        lines=("(§8.5.4, off-chain)", "phân xử kỳ REVIEW", "kiểm tra ngẫu nhiên p% số kỳ", "đã MINT → báo Code Manager"))
     arrow(ax, (930, 1400), (930, 1414), (370, 1414))
 
     # Tầng 5
@@ -236,8 +236,8 @@ def figure_model(out: Path) -> None:
                           (OFFCHAIN, "off-chain (lớp B)", False), (ONCHAIN, "on-chain (lớp A)", False)])
     for k, s in enumerate((
             "D1 nộp lại · D2 kỳ chồng lấn · D3 hai issuer · D4 đổi mã thiết bị (a: đăng ký lại, b: nhà máy + khối inverter)"
-            " · D5 dữ liệu lặp · D6 dùng trùng",
-            "M1 tăng đột biến · M2 thông đồng (sửa k nguồn tại chỗ) · M3 oracle lỗi",
+            " · D5 dùng trùng (retire lần hai)",
+            "M1 tăng đột biến · M2 thông đồng (sửa k nguồn tại chỗ) · M3 dữ liệu lặp · M4 oracle lỗi",
             "Oracle chạy off-chain, ký báo cáo (EIP-712). DecisionGate dùng O1 cho ngân sách CP và verdict của lớp B "
             "cho luật ④.")):
         text(ax, 40, 1856 + k * 26, s, size=9.6, color=MUTED)
@@ -249,7 +249,7 @@ def figure_experiment(out: Path) -> None:
     fig, ax = canvas(W, H)
     text(ax, 40, 40, "Sơ đồ thực nghiệm: từ dataset đến kết quả đánh giá", size=20, bold=True)
     text(ax, 40, 76, "Dữ liệu đo là dữ liệu thật. Thiết bị đăng ký, chủ dự án, kẻ gian và Production Auditor đều được "
-                     "mô phỏng. Lô = chứng chỉ của cả nhà máy trong một ngày.", size=10.5, color=MUTED)
+                     "mô phỏng. Kỳ sản xuất = chứng chỉ của cả nhà máy trong một ngày.", size=10.5, color=MUTED)
 
     header(ax, 40, 124, "BƯỚC 1 · DỮ LIỆU GỐC")
     box(ax, 40, 142, 870, 112, PLAIN, title="PVDAQ hệ 2107 (OEDI) · Arbuckle, CA · 893 kW DC", ts=11.5, fs=10,
@@ -275,7 +275,7 @@ def figure_experiment(out: Path) -> None:
             "• Gắn cờ: thiếu dữ liệu, đoạn treo, clipping 30 kW, ban đêm, inverter ngừng phát",
             "• Tạo 6 thiết bị (mỗi khối 4 inverter) sau một CP",
             "• POA từ NSRDB qua pvlib; loại ngày theo chỉ số trời quang (quang / mây vừa / nhiều mây)",
-            "• Script: rec/data/days.py; danh sách ngày bị loại kèm lý do: configs/days_dropped.csv")):
+            "• Danh sách ngày bị loại được lưu kèm lý do")):
         text(ax, 940, 366 + k * 26, s, size=10, color=MUTED)
     arrow(ax, (925, 476), (925, 532))
 
@@ -297,7 +297,7 @@ def figure_experiment(out: Path) -> None:
         lines=("đăng ký thiết bị (CP, công suất, issuer)", "phát hành theo ngày, transfer, retire",
                "L3 chuyển đăng ký (§16.3)", "L4 Production Group (§7.7)"))
     box(ax, 645, 708, 560, 132, ("#FFFFFF", SIM[1]), title="② Tầng tấn công", ts=11,
-        lines=("D1–D6 · insider · M1 · M2 (sửa k nguồn) · M3", "tham số: f, σ, k, α, loại ngày đích",
+        lines=("D1–D5 · M1 · M2 (sửa k nguồn) · M3 · M4", "tham số: f, σ, k, α, loại ngày đích",
                "chế độ R1 / R2 (ai giữ khóa của O1)", "mỗi ngày đủ điều kiện là một ca"))
     box(ax, 1228, 708, 560, 132, ("#FFFFFF", SIM[1]), title="③ Provenance → nhãn ẩn", ts=11, lw=2.0,
         lines=("mỗi yêu cầu ghi nguồn vật lý + khoảng 15 phút", "nhãn: hợp lệ / D / M / L",
@@ -305,19 +305,19 @@ def figure_experiment(out: Path) -> None:
     text(ax, 60, 866, "Đầu ra cho hệ thống: dòng yêu cầu phát hành theo thời gian + báo cáo O1–O4 (đã bị sửa ở k nguồn "
                       "nếu có tấn công). Nhãn ẩn KHÔNG đi vào hệ thống.", size=9.8, color=MUTED)
     text(ax, 60, 894, "Kiểm tra trước khi dùng: mọi bản ghi qua cùng bước định dạng · dòng sạch có DCR = 0 · dấu vết "
-                      "định dạng không phân biệt được (AUC ≈ 0,5)", size=9.8, color=MUTED)
-    text(ax, 60, 920, "· xem tay 20 mẫu mỗi kịch bản · nhãn L5 (inverter ngừng phát) được 2 người kiểm tay 50 ngày",
+                      "cấu trúc (không âm, đúng số slot, không thêm slot thiếu)", size=9.8, color=MUTED)
+    text(ax, 60, 920, "· L5: ngày inverter báo 0 được giữ nguyên trạng (gồm ngừng phát thật và ngừng ghi số liệu)",
          size=9.8, color=MUTED)
 
     header(ax, 40, 990, "BƯỚC 5 · HUẤN LUYỆN VÀ CHỌN NGƯỠNG")
     arrow(ax, (620, 952), (620, 1008))
     text(ax, 632, 976, "train + val", size=9.6, color=MUTED)
-    box(ax, 40, 1008, 820, 225, OFFCHAIN, title="Chỉ dùng lô trung thực của train và val", ts=11.5, fs=10,
+    box(ax, 40, 1008, 820, 225, OFFCHAIN, title="Chỉ dùng kỳ sản xuất trung thực của train và val", ts=11.5, fs=10,
         lines=("1. Đặc trưng chỉ từ O4: POA NSRDB, chỉ số trời quang, nhiệt độ, gió,",
                "    ngày trong năm (không dùng O1–O3)",
                "2. Hồi quy phân vị gradient boosting (q = 0,95), học 2018–2020",
-               "3. Trên 2021: ngưỡng nhất quán → 1% lô trung thực bị REVIEW nhầm",
-               "4. τ_C (Proposed) và τ₄ (pvlib, B2) → riêng trần REVIEW nhầm 4%;",
+               "3. Trên 2021: dung sai nhất quán → 1% kỳ trung thực bị REVIEW nhầm",
+               "4. τ_C (Proposed) và τ₄ (PVWatts, B2) → riêng ngưỡng MWh REVIEW nhầm 4%;",
                "    quét thêm 1%, 2%, 5%, 10% cho mục \"Tỉ lệ REVIEW nhầm\"",
                "5. Khóa mô hình và ngưỡng, ghi hash → dùng ở bước 6",
                "    (không học lại theo năm; báo cáo độ trôi trên test)"))
@@ -335,8 +335,8 @@ def figure_experiment(out: Path) -> None:
     for k, s in enumerate((
             "Hardhat (chain cục bộ): DeviceRegistry, DecisionGate, CertificateRegistry, Code Manager —",
             "cùng contract cho B1, B2, Proposed; lớp B chạy off-chain, test parity với chain",
-            "Production Auditor mô phỏng: phân xử lô REVIEW bằng nhãn thật;",
-            "kiểm tra ngẫu nhiên p ∈ {0, 1%, 5%} số lô đã mint; phát hiện thì Code Manager rút",
+            "Production Auditor mô phỏng: phân xử kỳ REVIEW bằng nhãn thật;",
+            "kiểm tra ngẫu nhiên p ∈ {0, 1%, 5%} số kỳ đã mint; phát hiện thì Code Manager rút",
             "E1 chạy ở R1 · E2 chạy ở R2 với k = 1…3 · 5 seed")):
         text(ax, 920, 1118 + k * 23, s, size=10, color=MUTED)
     arrow(ax, (860, 1120), (900, 1120))
@@ -347,12 +347,12 @@ def figure_experiment(out: Path) -> None:
     box(ax, 40, 1290, 1770, 206, MEASURE, title="So quyết định của từng cấu hình với nhãn ẩn", ts=11.5)
     for k, s in enumerate((
             "• Double counting: DCR, tỉ lệ lọt, exposure window, REJECT nhầm (L1, L3, L4)",
-            "• Kẻ gian thích nghi: LMAX theo k, loại ngày và mức trần (chỉ số chính)",
+            "• Kẻ gian thích nghi: LMAX theo k, loại ngày và mức REVIEW nhầm (chỉ số chính)",
             "• Phát hiện: precision (3 mức tỷ lệ gian lận), recall",
-            "• Tỉ lệ REVIEW nhầm: trần ở 1%, 2%, 4%, 5%, 10% — quy tắc kết luận chốt trước")):
+            "• Tỉ lệ REVIEW nhầm: ngưỡng MWh ở 1%, 2%, 4%, 5%, 10% — quy tắc kết luận chốt trước")):
         text(ax, 60, 1340 + k * 25, s, size=10, color=MUTED)
     for k, s in enumerate((
-            "• Khai khống: OIR · REVIEW nhầm theo L2, L5 · M3 · MWh thật bị giữ tạm",
+            "• Khai khống: OIR · REVIEW nhầm theo L2, L5 · M4 · MWh thật bị giữ tạm",
             "• Kiểm tra ngẫu nhiên: OIR và LMAX khi p ∈ {0, 1%, 5%}",
             "• Chi phí: gas mỗi thao tác và mỗi MWh, độ trễ p50/p95",
             "• Truy vết: lineage completeness (dashboard, kho file theo data_root)")):

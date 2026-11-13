@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-10-19T08:35:51.122740</dc:date>
+    <dc:date>2026-11-13T20:43:00.482556</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -40,7 +40,7 @@ Q 28.8 182.88 28.8 177.12
 L 28.8 108 
 Q 28.8 102.24 34.56 102.24 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #ffffff; stroke: #9aa3ae; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #ffffff; stroke: #9aa3ae; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_3">
     <path d="M 682.56 102.24 
@@ -53,7 +53,7 @@ Q 676.8 182.88 676.8 177.12
 L 676.8 108 
 Q 676.8 102.24 682.56 102.24 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #ffffff; stroke: #9aa3ae; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #ffffff; stroke: #9aa3ae; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_4">
     <path d="M 34.56 227.52 
@@ -66,7 +66,7 @@ Q 28.8 342.72 28.8 336.96
 L 28.8 233.28 
 Q 28.8 227.52 34.56 227.52 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #ffffff; stroke: #9aa3ae; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #ffffff; stroke: #9aa3ae; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_5">
     <path d="M 51.84 383.04 
@@ -79,7 +79,7 @@ Q 28.8 429.12 28.8 406.08
 L 28.8 406.08 
 Q 28.8 383.04 51.84 383.04 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #e6eef8; stroke: #4a72b0; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #e6eef8; stroke: #4a72b0; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_6">
     <path d="M 487.44 383.04 
@@ -92,7 +92,7 @@ Q 464.4 429.12 464.4 406.08
 L 464.4 406.08 
 Q 464.4 383.04 487.44 383.04 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #e6eef8; stroke: #4a72b0; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #e6eef8; stroke: #4a72b0; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_7">
     <path d="M 923.04 383.04 
@@ -105,7 +105,7 @@ Q 900 429.12 900 406.08
 L 900 406.08 
 Q 900 383.04 923.04 383.04 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #e3f2e6; stroke: #3f8f4e; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #e3f2e6; stroke: #3f8f4e; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_8">
     <path d="M 34.56 476.64 
@@ -118,7 +118,7 @@ Q 28.8 685.44 28.8 679.68
 L 28.8 482.4 
 Q 28.8 476.64 34.56 476.64 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #efe8f7; stroke: #7b5aa6; stroke-width: 1.5; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #efe8f7; stroke: #7b5aa6; stroke-width: 1.5; stroke-linejoin: miter"/>
    </g>
    <g id="patch_9">
     <path d="M 50.4 509.76 
@@ -131,7 +131,7 @@ Q 44.64 604.8 44.64 599.04
 L 44.64 515.52 
 Q 44.64 509.76 50.4 509.76 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #ffffff; stroke: #7b5aa6; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #ffffff; stroke: #7b5aa6; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_10">
     <path d="M 470.16 509.76 
@@ -144,7 +144,7 @@ Q 464.4 604.8 464.4 599.04
 L 464.4 515.52 
 Q 464.4 509.76 470.16 509.76 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #ffffff; stroke: #7b5aa6; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #ffffff; stroke: #7b5aa6; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_11">
     <path d="M 889.92 509.76 
@@ -157,7 +157,7 @@ Q 884.16 604.8 884.16 599.04
 L 884.16 515.52 
 Q 884.16 509.76 889.92 509.76 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #ffffff; stroke: #7b5aa6; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #ffffff; stroke: #7b5aa6; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_12">
     <path d="M 34.56 725.76 
@@ -170,7 +170,7 @@ Q 28.8 887.76 28.8 882
 L 28.8 731.52 
 Q 28.8 725.76 34.56 725.76 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #e6eef8; stroke: #4a72b0; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #e6eef8; stroke: #4a72b0; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_13">
     <path d="M 653.76 725.76 
@@ -183,7 +183,7 @@ Q 648 887.76 648 882
 L 648 731.52 
 Q 648 725.76 653.76 725.76 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #e3f2e6; stroke: #3f8f4e; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #e3f2e6; stroke: #3f8f4e; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_14">
     <path d="M 677.52 756 
@@ -196,7 +196,7 @@ Q 662.4 786.24 662.4 771.12
 L 662.4 771.12 
 Q 662.4 756 677.52 756 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #ffffff; stroke: #3f8f4e; stroke-width: 1.3; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #ffffff; stroke: #3f8f4e; stroke-width: 1.3; stroke-linejoin: miter"/>
    </g>
    <g id="patch_15">
     <path d="M 837.36 756 
@@ -209,7 +209,7 @@ Q 822.24 786.24 822.24 771.12
 L 822.24 771.12 
 Q 822.24 756 837.36 756 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #ffffff; stroke: #3f8f4e; stroke-width: 1.3; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #ffffff; stroke: #3f8f4e; stroke-width: 1.3; stroke-linejoin: miter"/>
    </g>
    <g id="patch_16">
     <path d="M 997.2 756 
@@ -222,7 +222,7 @@ Q 982.08 786.24 982.08 771.12
 L 982.08 771.12 
 Q 982.08 756 997.2 756 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #ffffff; stroke: #3f8f4e; stroke-width: 1.3; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #ffffff; stroke: #3f8f4e; stroke-width: 1.3; stroke-linejoin: miter"/>
    </g>
    <g id="patch_17">
     <path d="M 1157.04 756 
@@ -235,7 +235,7 @@ Q 1141.92 786.24 1141.92 771.12
 L 1141.92 771.12 
 Q 1141.92 756 1157.04 756 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #ffffff; stroke: #3f8f4e; stroke-width: 2.2; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #ffffff; stroke: #3f8f4e; stroke-width: 2.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_18">
     <path d="M 34.56 928.8 
@@ -248,7 +248,7 @@ Q 28.8 1077.12 28.8 1071.36
 L 28.8 934.56 
 Q 28.8 928.8 34.56 928.8 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #fff4d6; stroke: #c89b1a; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #fff4d6; stroke: #c89b1a; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_19">
     <path d="M 30.24 1103.04 
@@ -261,7 +261,7 @@ Q 28.8 1114.56 28.8 1113.12
 L 28.8 1104.48 
 Q 28.8 1103.04 30.24 1103.04 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #ffffff; stroke: #9aa3ae; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #ffffff; stroke: #9aa3ae; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_20">
     <path d="M 129.888 1103.04 
@@ -274,7 +274,7 @@ Q 128.448 1114.56 128.448 1113.12
 L 128.448 1104.48 
 Q 128.448 1103.04 129.888 1103.04 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #efe8f7; stroke: #7b5aa6; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #efe8f7; stroke: #7b5aa6; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_21">
     <path d="M 208.8 1103.04 
@@ -287,7 +287,7 @@ Q 207.36 1114.56 207.36 1113.12
 L 207.36 1104.48 
 Q 207.36 1103.04 208.8 1103.04 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #e6eef8; stroke: #4a72b0; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #e6eef8; stroke: #4a72b0; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_22">
     <path d="M 360.288 1103.04 
@@ -300,7 +300,7 @@ Q 358.848 1114.56 358.848 1113.12
 L 358.848 1104.48 
 Q 358.848 1103.04 360.288 1103.04 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #e3f2e6; stroke: #3f8f4e; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #e3f2e6; stroke: #3f8f4e; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_23">
     <path d="M 548.064 1103.04 
@@ -313,28 +313,28 @@ Q 546.624 1114.56 546.624 1113.12
 L 546.624 1104.48 
 Q 546.624 1103.04 548.064 1103.04 
 z
-" clip-path="url(#p0a001d1db9)" style="fill: #fff4d6; stroke: #c89b1a; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pf660a904bd)" style="fill: #fff4d6; stroke: #c89b1a; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="line2d_1">
     <path d="M 1287.36 557.28 
 L 1319.04 557.28 
-" clip-path="url(#p0a001d1db9)" style="fill: none; stroke-dasharray: 6,4.5; stroke-dashoffset: 0; stroke: #7b5aa6; stroke-width: 1.5"/>
+" clip-path="url(#pf660a904bd)" style="fill: none; stroke-dasharray: 6,4.5; stroke-dashoffset: 0; stroke: #7b5aa6; stroke-width: 1.5"/>
    </g>
    <g id="line2d_2">
     <path d="M 1319.04 557.28 
 L 1319.04 1002.96 
-" clip-path="url(#p0a001d1db9)" style="fill: none; stroke-dasharray: 6,4.5; stroke-dashoffset: 0; stroke: #7b5aa6; stroke-width: 1.5"/>
+" clip-path="url(#pf660a904bd)" style="fill: none; stroke-dasharray: 6,4.5; stroke-dashoffset: 0; stroke: #7b5aa6; stroke-width: 1.5"/>
    </g>
    <g id="line2d_3">
     <path d="M 625.536 1108.8 
 L 650.016 1108.8 
-" clip-path="url(#p0a001d1db9)" style="fill: none; stroke-dasharray: 6.4,4.8; stroke-dashoffset: 0; stroke: #7b5aa6; stroke-width: 1.6"/>
+" clip-path="url(#pf660a904bd)" style="fill: none; stroke-dasharray: 6.4,4.8; stroke-dashoffset: 0; stroke: #7b5aa6; stroke-width: 1.6"/>
    </g>
    <g id="text_1">
     <text style="font-weight: 700; font-size: 20px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #1f2933" x="28.8" y="35.133594" transform="rotate(-0 28.8 35.133594)">Sơ đồ thực nghiệm: từ dataset đến kết quả đánh giá</text>
    </g>
    <g id="text_2">
-    <text style="font-size: 10.5px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="28.8" y="57.904043" transform="rotate(-0 28.8 57.904043)">Dữ liệu đo là dữ liệu thật. Thiết bị đăng ký, chủ dự án, kẻ gian và Production Auditor đều được mô phỏng. Lô = chứng chỉ của cả nhà máy trong một ngày.</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="28.8" y="57.904043" transform="rotate(-0 28.8 57.904043)">Dữ liệu đo là dữ liệu thật. Thiết bị đăng ký, chủ dự án, kẻ gian và Production Auditor đều được mô phỏng. Kỳ sản xuất = chứng chỉ của cả nhà máy trong một ngày.</text>
    </g>
    <g id="text_3">
     <text style="font-weight: 700; font-size: 11.5px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #1f2933" x="38.88" y="121.297754" transform="rotate(-0 38.88 121.297754)">PVDAQ hệ 2107 (OEDI) · Arbuckle, CA · 893 kW DC</text>
@@ -405,7 +405,7 @@ z
     <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="676.8" y="303.992422" transform="rotate(-0 676.8 303.992422)">• POA từ NSRDB qua pvlib; loại ngày theo chỉ số trời quang (quang / mây vừa / nhiều mây)</text>
    </g>
    <g id="text_19">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="676.8" y="322.478047" transform="rotate(-0 676.8 322.478047)">• Script: rec/data/days.py; danh sách ngày bị loại kèm lý do: configs/days_dropped.csv</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="676.8" y="322.478047" transform="rotate(-0 676.8 322.478047)">• Danh sách ngày bị loại được lưu kèm lý do</text>
    </g>
    <g id="patch_26">
     <path d="M 666 342.72 
@@ -478,7 +478,7 @@ z
     <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #1f2933" x="474.48" y="529.083477" transform="rotate(-0 474.48 529.083477)">② Tầng tấn công</text>
    </g>
    <g id="text_30">
-    <text style="font-size: 9.6px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="474.48" y="545.791125" transform="rotate(-0 474.48 545.791125)">D1–D6 · insider · M1 · M2 (sửa k nguồn) · M3</text>
+    <text style="font-size: 9.6px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="474.48" y="545.791125" transform="rotate(-0 474.48 545.791125)">D1–D5 · M1 · M2 (sửa k nguồn) · M3 · M4</text>
    </g>
    <g id="text_31">
     <text style="font-size: 9.6px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="474.48" y="559.468875" transform="rotate(-0 474.48 559.468875)">tham số: f, σ, k, α, loại ngày đích</text>
@@ -505,10 +505,10 @@ z
     <text style="font-size: 9.8px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="43.2" y="626.89143" transform="rotate(-0 43.2 626.89143)">Đầu ra cho hệ thống: dòng yêu cầu phát hành theo thời gian + báo cáo O1–O4 (đã bị sửa ở k nguồn nếu có tấn công). Nhãn ẩn KHÔNG đi vào hệ thống.</text>
    </g>
    <g id="text_39">
-    <text style="font-size: 9.8px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="43.2" y="646.72757" transform="rotate(-0 43.2 646.72757)">Kiểm tra trước khi dùng: mọi bản ghi qua cùng bước định dạng · dòng sạch có DCR = 0 · dấu vết định dạng không phân biệt được (AUC ≈ 0,5)</text>
+    <text style="font-size: 9.8px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="43.2" y="646.72757" transform="rotate(-0 43.2 646.72757)">Kiểm tra trước khi dùng: mọi bản ghi qua cùng bước định dạng · dòng sạch có DCR = 0 · dấu vết cấu trúc (không âm, đúng số slot, không thêm slot thiếu)</text>
    </g>
    <g id="text_40">
-    <text style="font-size: 9.8px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="43.2" y="665.510352" transform="rotate(-0 43.2 665.510352)">· xem tay 20 mẫu mỗi kịch bản · nhãn L5 (inverter ngừng phát) được 2 người kiểm tay 50 ngày</text>
+    <text style="font-size: 9.8px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="43.2" y="665.371773" transform="rotate(-0 43.2 665.371773)">· L5: ngày inverter báo 0 được giữ nguyên trạng (gồm ngừng phát thật và ngừng ghi số liệu)</text>
    </g>
    <g id="patch_30">
     <path d="M 446.4 685.44 
@@ -524,7 +524,7 @@ z
     <text style="font-size: 9.6px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="455.04" y="705.214125" transform="rotate(-0 455.04 705.214125)">train + val</text>
    </g>
    <g id="text_42">
-    <text style="font-weight: 700; font-size: 11.5px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #1f2933" x="38.88" y="745.06752" transform="rotate(-0 38.88 745.06752)">Chỉ dùng lô trung thực của train và val</text>
+    <text style="font-weight: 700; font-size: 11.5px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #1f2933" x="38.88" y="745.235527" transform="rotate(-0 38.88 745.235527)">Chỉ dùng kỳ sản xuất trung thực của train và val</text>
    </g>
    <g id="text_43">
     <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="38.88" y="761.910078" transform="rotate(-0 38.88 761.910078)">1. Đặc trưng chỉ từ O4: POA NSRDB, chỉ số trời quang, nhiệt độ, gió,</text>
@@ -536,10 +536,10 @@ z
     <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="38.88" y="789.272422" transform="rotate(-0 38.88 789.272422)">2. Hồi quy phân vị gradient boosting (q = 0,95), học 2018–2020</text>
    </g>
    <g id="text_46">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="38.88" y="802.952422" transform="rotate(-0 38.88 802.952422)">3. Trên 2021: ngưỡng nhất quán → 1% lô trung thực bị REVIEW nhầm</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="38.88" y="802.952422" transform="rotate(-0 38.88 802.952422)">3. Trên 2021: dung sai nhất quán → 1% kỳ trung thực bị REVIEW nhầm</text>
    </g>
    <g id="text_47">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="38.88" y="816.632422" transform="rotate(-0 38.88 816.632422)">4. τ_C (Proposed) và τ₄ (pvlib, B2) → riêng trần REVIEW nhầm 4%;</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="38.88" y="816.632422" transform="rotate(-0 38.88 816.632422)">4. τ_C (Proposed) và τ₄ (PVWatts, B2) → riêng ngưỡng MWh REVIEW nhầm 4%;</text>
    </g>
    <g id="text_48">
     <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="38.88" y="830.312422" transform="rotate(-0 38.88 830.312422)">    quét thêm 1%, 2%, 5%, 10% cho mục "Tỉ lệ REVIEW nhầm"</text>
@@ -585,10 +585,10 @@ z
     <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="662.4" y="824.318047" transform="rotate(-0 662.4 824.318047)">cùng contract cho B1, B2, Proposed; lớp B chạy off-chain, test parity với chain</text>
    </g>
    <g id="text_59">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="662.4" y="841.263984" transform="rotate(-0 662.4 841.263984)">Production Auditor mô phỏng: phân xử lô REVIEW bằng nhãn thật;</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="662.4" y="841.263984" transform="rotate(-0 662.4 841.263984)">Production Auditor mô phỏng: phân xử kỳ REVIEW bằng nhãn thật;</text>
    </g>
    <g id="text_60">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="662.4" y="857.813828" transform="rotate(-0 662.4 857.813828)">kiểm tra ngẫu nhiên p ∈ {0, 1%, 5%} số lô đã mint; phát hiện thì Code Manager rút</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="662.4" y="857.813828" transform="rotate(-0 662.4 857.813828)">kiểm tra ngẫu nhiên p ∈ {0, 1%, 5%} số kỳ đã mint; phát hiện thì Code Manager rút</text>
    </g>
    <g id="text_61">
     <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="662.4" y="874.048828" transform="rotate(-0 662.4 874.048828)">E1 chạy ở R1 · E2 chạy ở R2 với k = 1…3 · 5 seed</text>
@@ -623,16 +623,16 @@ z
     <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="43.2" y="967.832422" transform="rotate(-0 43.2 967.832422)">• Double counting: DCR, tỉ lệ lọt, exposure window, REJECT nhầm (L1, L3, L4)</text>
    </g>
    <g id="text_65">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="43.2" y="985.832422" transform="rotate(-0 43.2 985.832422)">• Kẻ gian thích nghi: LMAX theo k, loại ngày và mức trần (chỉ số chính)</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="43.2" y="985.832422" transform="rotate(-0 43.2 985.832422)">• Kẻ gian thích nghi: LMAX theo k, loại ngày và mức REVIEW nhầm (chỉ số chính)</text>
    </g>
    <g id="text_66">
     <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="43.2" y="1003.666016" transform="rotate(-0 43.2 1003.666016)">• Phát hiện: precision (3 mức tỷ lệ gian lận), recall</text>
    </g>
    <g id="text_67">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="43.2" y="1021.983984" transform="rotate(-0 43.2 1021.983984)">• Tỉ lệ REVIEW nhầm: trần ở 1%, 2%, 4%, 5%, 10% — quy tắc kết luận chốt trước</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="43.2" y="1021.983984" transform="rotate(-0 43.2 1021.983984)">• Tỉ lệ REVIEW nhầm: ngưỡng MWh ở 1%, 2%, 4%, 5%, 10% — quy tắc kết luận chốt trước</text>
    </g>
    <g id="text_68">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="676.8" y="967.832422" transform="rotate(-0 676.8 967.832422)">• Khai khống: OIR · REVIEW nhầm theo L2, L5 · M3 · MWh thật bị giữ tạm</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="676.8" y="967.832422" transform="rotate(-0 676.8 967.832422)">• Khai khống: OIR · REVIEW nhầm theo L2, L5 · M4 · MWh thật bị giữ tạm</text>
    </g>
    <g id="text_69">
     <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Segoe UI'; text-anchor: start; fill: #52606d" x="676.8" y="985.973828" transform="rotate(-0 676.8 985.973828)">• Kiểm tra ngẫu nhiên: OIR và LMAX khi p ∈ {0, 1%, 5%}</text>
@@ -760,7 +760,7 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="p0a001d1db9">
+  <clipPath id="pf660a904bd">
    <rect x="0" y="0" width="1332" height="1166.4"/>
   </clipPath>
  </defs>
